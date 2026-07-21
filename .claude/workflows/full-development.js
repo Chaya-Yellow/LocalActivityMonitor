@@ -217,7 +217,7 @@ const architectResult = await agent(
   - Repository 参数化 SQL
   - Win32 声明标注 DLL + ExactSpelling
   - dotnet build 编译通过无 warning`,
-  { label: 'architect', agentType: 'architect', isolation: 'worktree' },
+  { label: 'architect', isolation: 'worktree' },
 )
 
 log(`Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
@@ -288,7 +288,7 @@ const wave1Results = await parallel([
     - Timer 非 while(true), 线程 BelowNormal
     - 空闲降频 10s, 异常 catch 不崩溃
     - 空闲 15min 阈值，恢复延续 is_continued=true`,
-    { label: 'engine', agentType: 'backend-engineer', isolation: 'worktree' },
+    { label: 'engine', isolation: 'worktree' },
   ),
 
   // 内容分析
@@ -311,7 +311,7 @@ const wave1Results = await parallel([
     C4: 规则表分类+用户覆盖
     C5: 去停用词提取关键词
     C6: 按app/project/domain/work_tag聚合当天`,
-    { label: 'classification', agentType: 'content-analyst', isolation: 'worktree' },
+    { label: 'classification', isolation: 'worktree' },
   ),
 
   // WPF 前端
@@ -336,7 +336,7 @@ const wave1Results = await parallel([
     ## 约束
     - MVVM(CommunityToolkit.Mvvm), Dispatcher 更新 UI
     - 中文注释`,
-    { label: 'frontend', agentType: 'frontend-engineer', isolation: 'worktree' },
+    { label: 'frontend', isolation: 'worktree' },
   ),
 
   // 数据报表
@@ -362,7 +362,7 @@ const wave1Results = await parallel([
     ## 约束
     - SQL 聚合，不加载全量到内存
     - Markdown 用 StringBuilder`,
-    { label: 'report', agentType: 'report-engineer', isolation: 'worktree' },
+    { label: 'report', isolation: 'worktree' },
   ),
 
   // 测试
@@ -385,7 +385,7 @@ const wave1Results = await parallel([
     ## 约束
     - 命名: [方法]_[场景]_[预期]
     - Mock Win32, 内存 SQLite`,
-    { label: 'test', agentType: 'test-engineer', isolation: 'worktree' },
+    { label: 'test', isolation: 'worktree' },
   ),
 ])
 
@@ -460,7 +460,7 @@ const testResult = await agent(
   2. 统计: 通过/失败/跳过
   3. 失败用例按模块分类 + 错误信息
   4. 只报告，不修改代码`,
-  { label: 'run-tests', agentType: 'test-engineer' },
+  { label: 'run-tests' },
 )
 
 log(`Tests: ${testResult ? 'OK' : 'FAIL'}`)
