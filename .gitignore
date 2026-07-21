@@ -37,8 +37,13 @@ bld/
 .idea/
 *.sln.iml
 
-# Claude Code
-.claude/
+# Claude Code — auto-generated, not tracked
+.claude/worktrees/
+.claude/memories/
+
+# Claude Code — project-scoped, tracked
+# .claude/agents/ — 角色定义，已跟踪
+# .claude/settings.json — 项目配置，可跟踪
 
 # OS files
 Thumbs.db
