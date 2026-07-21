@@ -147,13 +147,43 @@ const architectResult = await agent(
 
 log(`Wave 0: ${architectResult ? '✅' : '❌'}`)
 
+if (!architectResult) {
+  log('❌ Wave 0 失败，终止流程')
+  return { status: 'architect-failed' }
+}
+
+// ============================================================
+// Phase 2.5: 合并架构师代码 → main（修复 worktree 依赖问题）
+// ============================================================
+phase('Merge Architect')
+
+log('=== 合并架构师 worktree 到 main ===')
+
+const mergeArchitect = await agent(
+  `# 合并架构师 worktree 到 main
+
+  1. git branch | grep -i "worktree.*architect\\|worktree.*wf.*3" 找到架构师分支
+  2. git checkout main
+  3. git merge --squash <架构师分支>
+  4. git commit -m "chore: merge architect M1-M4 to main"
+  5. dotnet build 验证编译通过`,
+  { label: 'merge-architect' },
+)
+
+log(`合并架构师代码: ${mergeArchitect ? '✅' : '❌'}`)
+
+if (!mergeArchitect) {
+  log('❌ 架构师合并失败，终止流程')
+  return { status: 'merge-architect-failed' }
+}
+
 // ============================================================
 // Phase 3: Wave 1 — 5 角色并行
 // ============================================================
 phase('Wave 1')
 
-log('=== Wave 1 并行开发（最慢 ~3.5 天）===')
-log('各角色在独立 worktree 中工作')
+log('=== Wave 1 并行开发 ===')
+log('架构师接口已合入 main，5 角色各在独立 worktree 中工作')
 
 const wave1Results = await parallel([
 
