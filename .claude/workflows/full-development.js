@@ -1,15 +1,15 @@
 // ActivityMonitor 完整开发 Workflow v4
 // 使用方式: Workflow({ scriptPath: '.claude/workflows/full-development.js' })
 //
-// Phase 0: 项目骨架 → 提交到 main
+// Phase 0: 项目骨架 -> 提交到 main
 // Phase 1: PM 审查
-// Phase 2: Wave 0 — 架构师
-// Phase 3: Wave 1 — 5 角色并行（依赖架构师接口已合入 main）
+// Phase 2: Wave 0 - 架构师
+// Phase 3: Wave 1 - 5 角色并行（依赖架构师接口已合入 main）
 // Phase 4: 集成
 
 export const meta = {
   name: 'full-development',
-  description: '完整开发流程：项目初始化 → 需求审查 → Wave 0 → Wave 1 并行(5角色) → 集成测试',
+  description: '完整开发流程：项目初始化 -> 需求审查 -> Wave 0 -> Wave 1 并行(5角色) -> 集成测试',
   phases: [
     { title: 'Init', detail: '创建 .sln + .csproj 项目骨架并提交到 main' },
     { title: 'Review', detail: 'pm-assistant 审查开发计划' },
@@ -36,7 +36,7 @@ const initResult = await agent(
 
   | 项目 | 类型 | 引用 | NuGet |
   |------|------|------|-------|
-  | ActivityMonitor.Core | classlib(net8.0-windows) | — | — |
+  | ActivityMonitor.Core | classlib(net8.0-windows) | - | - |
   | ActivityMonitor.Data | classlib(net8.0-windows) | Core | Microsoft.Data.Sqlite |
   | ActivityMonitor.TrayApp | wpf(net8.0-windows) | Core, Data | CommunityToolkit.Mvvm |
   | ActivityMonitor.Tests | xunit(net8.0-windows) | Core, Data | xunit,FluentAssertions,NSubstitute |
@@ -63,7 +63,12 @@ const initResult = await agent(
   { label: 'project-init' },
 )
 
-log(`Init: ${initResult ? '✅' : '❌'}`)
+log(`Init: ${initResult ? 'OK' : 'FAIL'}`)
+
+if (!initResult) {
+  log('FAIL: init failed, aborting (subsequent phases depend on skeleton)')
+  return { status: 'init-failed' }
+}
 
 // ============================================================
 // Phase 1: 计划审查
@@ -75,14 +80,14 @@ log('=== PM Assistant 审查 ===')
 const review = await agent(
   `审查多 agent 并行开发计划：
 
-  Wave 0: 技术架构师 → M1-M4（数据模型/接口/SQLite/Win32）
+  Wave 0: 技术架构师 -> M1-M4（数据模型/接口/SQLite/Win32）
   Wave 1（并行）:
-    - 后端引擎 → Core/Tracking/ 5 模块
-    - 内容分析 → Core/Tracking+Classification/ 6 模块
-    - WPF 前端 → TrayApp/ 5 UI 模块（Mock 先行）
-    - 数据报表 → Data/Aggregation+TrayApp/Exporters/ 5 模块
-    - 测试 → Tests/ 全部用例
-  Phase 4: 合并 worktree → build → test
+    - 后端引擎 -> Core/Tracking/ 5 模块
+    - 内容分析 -> Core/Tracking+Classification/ 6 模块
+    - WPF 前端 -> TrayApp/ 5 UI 模块（Mock 先行）
+    - 数据报表 -> Data/Aggregation+TrayApp/Exporters/ 5 模块
+    - 测试 -> Tests/ 全部用例
+  Phase 4: 合并 worktree -> build -> test
 
   检查完整性、冲突、边界、是否需要新角色。`,
   {
@@ -125,7 +130,7 @@ if (review.recommendation === 'reject') {
 }
 
 // ============================================================
-// Phase 2: Wave 0 — 技术架构师
+// Phase 2: Wave 0 - 技术架构师
 // ============================================================
 phase('Wave 0')
 
@@ -154,7 +159,7 @@ const architectResult = await agent(
   { label: 'architect', agentType: 'architect', isolation: 'worktree' },
 )
 
-log(`Wave 0: ${architectResult ? '✅' : '❌'}`)
+log(`Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
 
 if (!architectResult) {
   log('Wave 0 failed, aborting')
@@ -172,8 +177,8 @@ log('=== 合并架构师 worktree 到 main ===')
 const mergeArchitect = await agent(
   `# 合并架构师 worktree 到 main
 
-  1. git worktree list  # 查看所有 worktree，找到架构师的那个
-  2. 从输出中找到架构师的分支名（不含 main 的那个就是）
+  1. git worktree list  # 查看所有 worktree
+  2. 从输出中找到架构师的分支名（非 main 的那个）
   3. git checkout main
   4. git merge --squash <架构师分支名>
   5. git commit -m "chore: merge architect M1-M4 to main"
@@ -181,7 +186,7 @@ const mergeArchitect = await agent(
   { label: 'merge-architect' },
 )
 
-log(`Merge architect: ${mergeArchitect ? '✅' : '❌'}`)
+log(`Merge architect: ${mergeArchitect ? 'OK' : 'FAIL'}`)
 
 if (!mergeArchitect) {
   log('Merge failed, aborting')
@@ -189,7 +194,7 @@ if (!mergeArchitect) {
 }
 
 // ============================================================
-// Phase 3: Wave 1 — 5 角色并行
+// Phase 3: Wave 1 - 5 角色并行
 // 此时 main 已有：.sln + .csproj + 接口 + 模型 + SQLite + Win32
 // ============================================================
 phase('Wave 1')
@@ -319,11 +324,17 @@ const wave1Results = await parallel([
 // Wave 1 汇总
 const roleNames = ['engine', 'classification', 'frontend', 'report', 'test']
 let allPass = true
-log('=== Wave 1 结果 ===')
-wave1Results.forEach((r, i) => { allPass &&= !!r; log(`  ${r ? '✅' : '❌'} ${roleNames[i]}`) })
+wave1Results.forEach((r, i) => { allPass &&= !!r; log(`  ${r ? 'OK' : 'FAIL'} ${roleNames[i]}`) })
+
+// guard: Wave 1 任一角色失败则终止
+if (!allPass) {
+  log('Wave 1 partial failure, aborting (merge would fail)')
+  return { status: 'wave1-partial-failure' }
+}
 
 // ============================================================
 // Phase 4: 集成
+// 注意：architect 分支已在 Phase 2.5 合入 main，此处不再重复合并
 // ============================================================
 phase('Integration')
 
@@ -335,15 +346,16 @@ const mergeResult = await agent(
   ## 步骤
   1. git worktree list  # 列出所有 worktree 查看分支名
   2. 按顺序 merge --squash 每个分支到 main:
-     architect -> engine -> classification -> report -> frontend -> test
+     engine -> classification -> report -> frontend -> test
   3. 每步: git merge --squash <分支> && git commit -m "merge <角色> worktree" && dotnet build
 
   ## 注意
-  各模块路径不重叠，预期无冲突`,
+  - architect 分支已在早期阶段合并，不要再次合并
+  - 各模块路径不重叠，预期无冲突`,
   { label: 'merge-worktrees' },
 )
 
-log(`Merge: ${mergeResult ? '✅' : '❌'}`)
+log(`Merge: ${mergeResult ? 'OK' : 'FAIL'}`)
 
 if (!mergeResult) {
   log('Merge failed, manual intervention needed')
@@ -360,16 +372,16 @@ const testResult = await agent(
   { label: 'run-tests', agentType: 'test-engineer' },
 )
 
-log(`Tests: ${testResult ? '✅' : '❌ Some failed'}`)
+log(`Tests: ${testResult ? 'OK' : 'FAIL'}`)
 
 // 最终
 log('===== Complete =====')
-log(`Wave 0: ${architectResult ? '✅' : '❌'}`)
-log(`Wave 1: ${allPass ? '✅ All passed' : '⚠️ Partial failure'}`)
-log(`Integration: ${mergeResult && testResult ? '✅' : '⚠️ Manual intervention needed'}`)
+log(`Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
+log(`Wave 1: ${allPass ? 'OK All passed' : 'WARN Partial failure'}`)
+log(`Integration: ${mergeResult && testResult ? 'OK' : 'WARN Manual intervention needed'}`)
 
 return {
-  status: allPass ? 'success' : 'partial',
+  status: allPass && mergeResult && testResult ? 'success' : 'partial',
   summary: {
     init: !!initResult,
     architect: !!architectResult,
