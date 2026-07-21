@@ -33,13 +33,13 @@ async function updateCheckpoint(phase, status, details) {
 
     1. 读取 doc/09-会话检查点.md
     2. 更新以下内容：
-       - 将最后更新日期改为 2026-07-21
-       - 在"任务完成情况"表中更新或添加：
+       - 将最后更新日期改为今天的日期
+       - 在"任务完成情况"表中添加一行：
          | ${phase} | ${status} | ${details} |
        - 更新"当前代码状态"部分，反映最新进展
-       - 更新"下一步（中断后接续点）"部分
+       - 更新"下一步（中断后接续点）"部分，指向未完成的阶段
     3. 写回 doc/09-会话检查点.md
-    4. 只修改上述字段，不要改动其他内容`,
+    4. 保持原有 emoji 风格和 markdown 格式不变`,
     { label: 'checkpoint-' + phase.toLowerCase().replace(/\s+/g, '-') },
   )
 }
@@ -52,9 +52,9 @@ async function logError(phase, errorMsg) {
     `# 追加报错到 doc/07-运行报错日志.md
 
     1. 读取 doc/07-运行报错日志.md
-    2. 在"报错记录"区顶部插入一条新记录：
+    2. 在"报错记录"区顶部插入一条新记录，格式要与 doc/07 的模板完全一致（包含所有字段）：
 
-    ### [2026-07-21] ${phase} 失败
+    ### [YYYY-MM-DD] ${phase} 失败
 
     **错误现象：**
     - Workflow 阶段 "${phase}" 执行失败
@@ -66,11 +66,15 @@ async function logError(phase, errorMsg) {
     **解决方案：**
     待排查。可能是编译错误、接口不一致或网络问题。
 
+    **预防措施：**
+    待补充
+
     **涉及文件：** 待定
 
-    3. 同时在"快速索引"表中插入一行：
-    | 2026-07-21 | ${phase} 失败 | workflow | 待修复 |
-    4. 写回 doc/07-运行报错日志.md`,
+    3. 同时在"快速索引"表第一行插入一条记录：
+    | YYYY-MM-DD | ${phase} 失败 | workflow | 待修复 |
+    4. 写回 doc/07-运行报错日志.md
+    5. 日期的 YYYY-MM-DD 替换为今天的日期`,
     { label: 'error-' + phase.toLowerCase().replace(/\s+/g, '-') },
   )
 }
@@ -400,16 +404,16 @@ wave1Results.forEach((r, i) => {
 const failedRoles = roleStatus.filter(r => !r.success)
 if (failedRoles.length > 0) {
   const failedNames = failedRoles.map(r => r.role).join(', ')
-  await logError('Phase 3 Wave 1', `以下角色失败: ${failedNames}`)
+  await logError('Phase 3 Wave 1', '以下角色失败: ' + failedNames)
 }
 
 // 更新检查点
 await updateCheckpoint(
-  'Wave 1 (5 角色并行)',
-  allPass ? 'OK' : 'PARTIAL',
+  'Wave 1 (5 Role Parallel)',
+  allPass ? 'OK' : 'Partially Failed',
   allPass
-    ? '全部 5 角色实现完成'
-    : '部分角色失败: ' + failedRoles.map(r => r.role).join(', ')
+    ? 'All 5 roles implemented: engine, classification, frontend, report, test'
+    : 'Failed roles: ' + failedRoles.map(r => r.role).join(', ')
 )
 
 // guard: Wave 1 任一角色失败则终止
@@ -470,11 +474,11 @@ if (!testResult) {
 // ============================================================
 const finalStatus = allPass && mergeResult && testResult ? 'success' : 'partial'
 await updateCheckpoint(
-  '整个开发流程',
-  finalStatus === 'success' ? 'OK' : 'PARTIAL',
+  'Full Development Pipeline',
+  finalStatus === 'success' ? 'OK' : 'Partial',
   finalStatus === 'success'
-    ? '全部阶段完成：项目骨架 -> 审查 -> 架构 -> 5 角色 -> 集成测试通过'
-    : '有阶段失败，详情见 doc/07-运行报错日志.md'
+    ? 'All phases complete: skeleton -> review -> architect -> 5 roles -> integration tests passed'
+    : 'Some phases failed, see doc/07 for details'
 )
 
 // 最终
@@ -484,7 +488,7 @@ log(`  Init: ${initResult ? 'OK' : 'FAIL'}`)
 log(`  Review: ${review.recommendation}`)
 log(`  Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
 log(`  Merge Architect: ${mergeArchitect ? 'OK' : 'FAIL'}`)
-log(`  Wave 1: ${roleStatus.map(r => `${r.role}=${r.success ? 'OK' : 'FAIL'}`).join(', ')}`)
+log(`  Wave 1: ${roleStatus.map(r => r.role + '=' + (r.success ? 'OK' : 'FAIL')).join(', ')}`)
 log(`  Integration: ${mergeResult && testResult ? 'OK' : 'PARTIAL'}`)
 
 return {
