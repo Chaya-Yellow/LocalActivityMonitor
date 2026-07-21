@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Forms;
+using Application = System.Windows.Application;
 using ActivityMonitor.TrayApp.Dashboard;
 using ActivityMonitor.TrayApp.TrayIcon;
 

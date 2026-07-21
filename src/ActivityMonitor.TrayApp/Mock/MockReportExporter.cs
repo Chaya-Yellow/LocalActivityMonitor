@@ -1,3 +1,4 @@
+using System.IO;
 using ActivityMonitor.Core.Interfaces;
 
 namespace ActivityMonitor.TrayApp.Mock;

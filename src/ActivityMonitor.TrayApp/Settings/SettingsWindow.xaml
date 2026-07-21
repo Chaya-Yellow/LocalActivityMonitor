@@ -154,7 +154,6 @@
                                 Background="{StaticResource DangerBrush}"
                                 Foreground="White"
                                 BorderThickness="0"
-                                CornerRadius="4"
                                 Padding="14,6"
                                 Cursor="Hand"
                                 VerticalAlignment="Center"

@@ -1,5 +1,6 @@
 using System.Windows;
 using ActivityMonitor.Core.Interfaces;
+using Clipboard = System.Windows.Clipboard;
 using ActivityMonitor.TrayApp.Mock;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

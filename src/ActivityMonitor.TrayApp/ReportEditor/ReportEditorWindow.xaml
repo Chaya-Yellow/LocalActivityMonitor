@@ -133,7 +133,6 @@
 
             <Button Grid.Column="2"
                     Content="💾 导出为 .md"
-                    Style="{StaticResource PrimaryButton}"
                     Background="{StaticResource SuccessBrush}"
                     Command="{Binding ExportToFileCommand}"
                     Padding="12,6">
