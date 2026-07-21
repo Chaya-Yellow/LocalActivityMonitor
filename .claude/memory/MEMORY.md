@@ -1,0 +1,6 @@
+- [运行报错日志](error-log.md) — 项目运行报错/解决方案记录
+- [项目文档规范](project-docs-convention.md) — 文档存放位置和命名规范
+- [待办建议 Backlog](pending-backlog.md) — 等待处理的建议清单
+- [自动同步约定](auto-sync-expectation.md) — 完成状态/待办建议自动写入，不等提醒
+- [会话检查点](session-checkpoint.md) — 进度/决策记录，中断接续
+- [Agent 开发前必读](agent-preflight.md) — agent 编码前必须执行的 5 步流程
