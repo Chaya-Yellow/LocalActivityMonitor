@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>ActivityMonitor.TrayApp</RootNamespace>
+    <AssemblyName>ActivityMonitor.TrayApp</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <OutputType>WinExe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ActivityMonitor.Core\ActivityMonitor.Core.csproj" />
+    <ProjectReference Include="..\ActivityMonitor.Data\ActivityMonitor.Data.csproj" />
+  </ItemGroup>
+
+</Project>

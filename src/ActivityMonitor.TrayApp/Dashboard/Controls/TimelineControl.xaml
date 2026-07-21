@@ -1,0 +1,60 @@
+<UserControl x:Class="ActivityMonitor.TrayApp.Dashboard.Controls.TimelineControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:ActivityMonitor.TrayApp.Dashboard.Controls"
+             xmlns:models="clr-namespace:ActivityMonitor.Core.Models;assembly=ActivityMonitor.Core"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="500"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="TimelineItemTemplate" DataType="models:ActivityEvent">
+            <controls:TimelineItem
+                EventData="{Binding}"
+                EditCommand="{Binding ElementName=Root, Path=EditEventCommand}"
+                DeleteCommand="{Binding ElementName=Root, Path=DeleteEventCommand}" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 头部：标题 + 插入按钮 -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="⏱ 时间线"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="＋ 插入线下活动"
+                        Style="{StaticResource PrimaryButton}"
+                        FontSize="12"
+                        Padding="10,4"
+                        Background="{StaticResource AccentBrush}"
+                        Command="{Binding ElementName=Root, Path=InsertOfflineCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- 时间线事件列表 -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ElementName=Root, Path=Events}"
+                          ItemTemplate="{StaticResource TimelineItemTemplate}"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

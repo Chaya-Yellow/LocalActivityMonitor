@@ -1,0 +1,66 @@
+<UserControl x:Class="ActivityMonitor.TrayApp.Dashboard.Controls.SummaryCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="90" d:DesignWidth="180"
+             x:Name="Root">
+
+    <Border Style="{StaticResource CardBorder}"
+            Padding="14,10"
+            MinWidth="140"
+            MinHeight="80">
+        <Border BorderThickness="0,0,0,3"
+                BorderBrush="{Binding ElementName=Root, Path=AccentColor}"
+                VerticalAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 标签 -->
+                <TextBlock Grid.Row="0"
+                           Text="{Binding ElementName=Root, Path=Label}"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextTrimming="CharacterEllipsis" />
+
+                <!-- 数值 -->
+                <TextBlock Grid.Row="1"
+                           Text="{Binding ElementName=Root, Path=Value}"
+                           FontSize="28"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="0,4,0,0" />
+
+                <!-- 单位 / 副文本（为空时隐藏） -->
+                <TextBlock Grid.Row="2"
+                           Text="{Binding ElementName=Root, Path=Unit}"
+                           FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,2,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                                <Trigger Property="Text" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Border>
+    </Border>
+</UserControl>

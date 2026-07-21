@@ -1,0 +1,205 @@
+<Window x:Class="ActivityMonitor.TrayApp.Dashboard.DashboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:ActivityMonitor.TrayApp.Dashboard.Controls"
+        mc:Ignorable="d"
+        Title="Activity Monitor — Dashboard"
+        Height="700" Width="960"
+        MinHeight="500" MinWidth="800"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}">
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshDataCommand}" />
+    </Window.InputBindings>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <!-- 头部日期 -->
+            <RowDefinition Height="Auto" />
+            <!-- 摘要卡片行 -->
+            <RowDefinition Height="Auto" />
+            <!-- 主内容区 -->
+            <RowDefinition Height="*" />
+            <!-- 底部操作栏 -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════ 头部 ═══════ -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="📋 Activity Monitor"
+                       FontSize="22" FontWeight="Bold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding CurrentDateLabel}"
+                       FontSize="14"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="14,0,0,0" />
+
+            <!-- 监控状态标识（使用 DataTrigger 切换颜色） -->
+            <Border Grid.Column="2"
+                    Padding="10,4"
+                    CornerRadius="12"
+                    VerticalAlignment="Center"
+                    BorderThickness="0">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#107C10" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMonitoring}" Value="False">
+                                <Setter Property="Background" Value="#767676" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="White">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="● 监控中" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMonitoring}" Value="False">
+                                    <Setter Property="Text" Value="● 已暂停" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </Grid>
+
+        <!-- ═══════ 摘要卡片行 ═══════ -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <controls:SummaryCard Grid.Column="0"
+                                  Label="总活跃时长"
+                                  Value="{Binding TodayTotalHours}"
+                                  Unit="今日累计"
+                                  AccentColor="{StaticResource PrimaryBrush}"
+                                  Margin="0,0,4,0" />
+
+            <controls:SummaryCard Grid.Column="1"
+                                  Label="工作时长"
+                                  Value="{Binding WorkHoursText}"
+                                  Unit="含在线+离线"
+                                  AccentColor="{StaticResource SuccessBrush}"
+                                  Margin="4,0" />
+
+            <controls:SummaryCard Grid.Column="2"
+                                  Label="空闲/休息"
+                                  Value="{Binding IdleHoursText}"
+                                  Unit="含午休+小憩"
+                                  AccentColor="{StaticResource WarningBrush}"
+                                  Margin="4,0" />
+
+            <controls:SummaryCard Grid.Column="3"
+                                  Label="事件数"
+                                  Value="{Binding EventCountText}"
+                                  Unit="点击可编辑"
+                                  AccentColor="{StaticResource IdleBrush}"
+                                  Margin="4,0,0,0" />
+        </Grid>
+
+        <!-- ═══════ 主内容区：时间线 + 实时统计 ═══════ -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：时间线 -->
+            <controls:TimelineControl Grid.Column="0"
+                                      Events="{Binding TodayEvents}"
+                                      EditEventCommand="{Binding EditEventCommand}"
+                                      DeleteEventCommand="{Binding DeleteEventCommand}"
+                                      InsertOfflineCommand="{Binding InsertOfflineActivityCommand}" />
+
+            <!-- 右侧：实时统计 -->
+            <controls:RealTimeStatsControl Grid.Column="2"
+                                           AppStats="{Binding AppStats}"
+                                           ProjectStats="{Binding ProjectStats}"
+                                           DomainStats="{Binding DomainStats}"
+                                           CategoryStats="{Binding CategoryStats}"
+                                           SelectedTab="{Binding SelectedStatsTab}" />
+        </Grid>
+
+        <!-- ═══════ 底部操作栏 ═══════ -->
+        <Border Grid.Row="3" Margin="0,12,0,0" Padding="0,8,0,0"
+                BorderThickness="0,1,0,0"
+                BorderBrush="#E0E0E0">
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Content="📝 编辑日报"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding OpenReportEditorCommand}"
+                        Margin="0,0,8,0" />
+
+                <Button Grid.Column="1"
+                        Content="📋 历史记录"
+                        Style="{StaticResource PrimaryButton}"
+                        Background="{StaticResource TextSecondaryBrush}"
+                        Command="{Binding OpenHistoryCommand}"
+                        Margin="0,0,0,0" />
+
+                <Button Grid.Column="3"
+                        Content="⚙ 设置"
+                        Style="{StaticResource PrimaryButton}"
+                        Background="#666666"
+                        Command="{Binding OpenSettingsCommand}"
+                        Margin="0,0,8,0" />
+
+                <Button Grid.Column="4"
+                        Content="🔄 刷新"
+                        Style="{StaticResource PrimaryButton}"
+                        Background="{StaticResource PrimaryBrush}"
+                        Command="{Binding RefreshDataCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- 加载遮罩（使用 DataTrigger 切换可见性） -->
+        <Border Grid.RowSpan="4"
+                Background="#40FFFFFF">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="加载中..."
+                       FontSize="18"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+        </Border>
+    </Grid>
+</Window>

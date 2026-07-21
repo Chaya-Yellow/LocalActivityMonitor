@@ -1,0 +1,99 @@
+<UserControl x:Class="ActivityMonitor.TrayApp.Dashboard.Controls.RealTimeStatsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:core="clr-namespace:ActivityMonitor.Core.Interfaces;assembly=ActivityMonitor.Core"
+             xmlns:local="clr-namespace:ActivityMonitor.TrayApp.Dashboard.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="320"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="StatsItemTemplate" DataType="core:StatsItem">
+            <Grid MinHeight="34" Margin="0,2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 第一行：名称 + 时长/占比 -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Name}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+
+                    <TextBlock Grid.Column="1"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center">
+                        <Run Text="{Binding DurationMs, StringFormat={}{0:N0}ms}" />
+                        <Run Text=" · " />
+                        <Run Text="{Binding Percentage, StringFormat={}{0:F1}%}" />
+                    </TextBlock>
+                </Grid>
+
+                <!-- 第二行：进度条 -->
+                <Grid Grid.Row="1" Height="8" Margin="0,2,0,0">
+                    <Border Background="#E8E8E8" CornerRadius="4" />
+                    <Border Background="{StaticResource AccentBrush}"
+                            CornerRadius="4"
+                            HorizontalAlignment="Left">
+                        <Border.Width>
+                            <MultiBinding>
+                                <MultiBinding.Converter>
+                                    <local:PercentageToWidthConverter />
+                                </MultiBinding.Converter>
+                                <Binding Path="Percentage" />
+                                <Binding Path="ActualWidth"
+                                         RelativeSource="{RelativeSource AncestorType=Grid}" />
+                            </MultiBinding>
+                        </Border.Width>
+                    </Border>
+                </Grid>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource CardBorder}" Padding="12,10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题 -->
+            <TextBlock Grid.Row="0"
+                       Text="📊 实时统计"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,8" />
+
+            <!-- 视角切换 Tab -->
+            <TabControl Grid.Row="1"
+                        SelectedIndex="{Binding ElementName=Root, Path=SelectedTab}">
+                <TabItem Header="应用" />
+                <TabItem Header="项目" />
+                <TabItem Header="网页" />
+                <TabItem Header="类别" />
+            </TabControl>
+
+            <!-- 统计列表 -->
+            <ScrollViewer Grid.Row="2"
+                          VerticalScrollBarVisibility="Auto"
+                          Margin="0,6,0,0">
+                <ItemsControl ItemsSource="{Binding ElementName=Root, Path=CurrentStats}"
+                              ItemTemplate="{StaticResource StatsItemTemplate}" />
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>
