@@ -1,15 +1,19 @@
-// ActivityMonitor 完整开发 Workflow v4
+// ActivityMonitor 完整开发 Workflow v5
 // 使用方式: Workflow({ scriptPath: '.claude/workflows/full-development.js' })
 //
-// Phase 0: 项目骨架 -> 提交到 main
-// Phase 1: PM 审查
-// Phase 2: Wave 0 - 架构师
-// Phase 3: Wave 1 - 5 角色并行（依赖架构师接口已合入 main）
-// Phase 4: 集成
+// 特性:
+// - 自动写入 doc/09-会话检查点.md 记录每个阶段完成状态
+// - 自动写入 doc/07-运行报错日志.md 记录失败详情
+// - Phase 0: 项目骨架 -> 提交到 main
+// - Phase 1: PM 审查
+// - Phase 2: Wave 0 - 架构师
+// - Phase 3: 合并架构师代码到 main
+// - Phase 4: Wave 1 - 5 角色并行
+// - Phase 5: 集成
 
 export const meta = {
   name: 'full-development',
-  description: '完整开发流程：项目初始化 -> 需求审查 -> Wave 0 -> Wave 1 并行(5角色) -> 集成测试',
+  description: '完整开发流程：Init -> Review -> Wave 0 -> Merge Architect -> Wave 1(并行) -> Integration',
   phases: [
     { title: 'Init', detail: '创建 .sln + .csproj 项目骨架并提交到 main' },
     { title: 'Review', detail: 'pm-assistant 审查开发计划' },
@@ -18,6 +22,57 @@ export const meta = {
     { title: 'Wave 1', detail: '5 个角色 worktree 隔离并行开发' },
     { title: 'Integration', detail: '合并 worktree + 编译 + 全量测试' },
   ],
+}
+
+// ============================================================
+// 辅助函数：更新会话检查点
+// ============================================================
+async function updateCheckpoint(phase, status, details) {
+  await agent(
+    `# 更新 doc/09-会话检查点.md
+
+    1. 读取 doc/09-会话检查点.md
+    2. 更新以下内容：
+       - 将最后更新日期改为 2026-07-21
+       - 在"任务完成情况"表中更新或添加：
+         | ${phase} | ${status} | ${details} |
+       - 更新"当前代码状态"部分，反映最新进展
+       - 更新"下一步（中断后接续点）"部分
+    3. 写回 doc/09-会话检查点.md
+    4. 只修改上述字段，不要改动其他内容`,
+    { label: 'checkpoint-' + phase.toLowerCase().replace(/\s+/g, '-') },
+  )
+}
+
+// ============================================================
+// 辅助函数：记录错误到报错日志
+// ============================================================
+async function logError(phase, errorMsg) {
+  await agent(
+    `# 追加报错到 doc/07-运行报错日志.md
+
+    1. 读取 doc/07-运行报错日志.md
+    2. 在"报错记录"区顶部插入一条新记录：
+
+    ### [2026-07-21] ${phase} 失败
+
+    **错误现象：**
+    - Workflow 阶段 "${phase}" 执行失败
+    - 错误详情：${errorMsg}
+
+    **根因分析：**
+    参见 workflow 运行日志
+
+    **解决方案：**
+    待排查。可能是编译错误、接口不一致或网络问题。
+
+    **涉及文件：** 待定
+
+    3. 同时在"快速索引"表中插入一行：
+    | 2026-07-21 | ${phase} 失败 | workflow | 待修复 |
+    4. 写回 doc/07-运行报错日志.md`,
+    { label: 'error-' + phase.toLowerCase().replace(/\s+/g, '-') },
+  )
 }
 
 // ============================================================
@@ -66,7 +121,8 @@ const initResult = await agent(
 log(`Init: ${initResult ? 'OK' : 'FAIL'}`)
 
 if (!initResult) {
-  log('FAIL: init failed, aborting (subsequent phases depend on skeleton)')
+  log('FAIL: init failed, recording error and aborting')
+  await logError('Phase 0 Init', 'dotnet new 或 dotnet build 失败，项目骨架未创建')
   return { status: 'init-failed' }
 }
 
@@ -126,6 +182,7 @@ if (review.newRolesNeeded?.length) log(`New roles needed: ${review.newRolesNeede
 
 if (review.recommendation === 'reject') {
   log('Plan rejected, aborting')
+  await logError('Phase 1 Review', 'PM Assistant 驳回了开发计划')
   return { status: 'rejected', review }
 }
 
@@ -163,12 +220,12 @@ log(`Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
 
 if (!architectResult) {
   log('Wave 0 failed, aborting')
+  await logError('Phase 2 Wave 0', '架构师 M1-M4 实现失败，编译不通过')
   return { status: 'architect-failed' }
 }
 
 // ============================================================
 // Phase 2.5: 合并架构师代码到 main
-// 目的：让 Wave 1 的 5 个 worktree 能引用架构师的接口
 // ============================================================
 phase('Merge Architect')
 
@@ -177,7 +234,7 @@ log('=== 合并架构师 worktree 到 main ===')
 const mergeArchitect = await agent(
   `# 合并架构师 worktree 到 main
 
-  1. git worktree list  # 查看所有 worktree
+  1. git worktree list
   2. 从输出中找到架构师的分支名（非 main 的那个）
   3. git checkout main
   4. git merge --squash <架构师分支名>
@@ -190,12 +247,19 @@ log(`Merge architect: ${mergeArchitect ? 'OK' : 'FAIL'}`)
 
 if (!mergeArchitect) {
   log('Merge failed, aborting')
+  await logError('Phase 2.5 Merge Architect', '架构师 worktree 合并到 main 失败')
   return { status: 'merge-architect-failed' }
 }
 
+// 检查点：架构师阶段完成
+await updateCheckpoint(
+  'Wave 0 (M1-M4)',
+  'OK',
+  '架构师完成 Interfaces/Models/SQLite/Win32，已合入 main'
+)
+
 // ============================================================
 // Phase 3: Wave 1 - 5 角色并行
-// 此时 main 已有：.sln + .csproj + 接口 + 模型 + SQLite + Win32
 // ============================================================
 phase('Wave 1')
 
@@ -324,7 +388,29 @@ const wave1Results = await parallel([
 // Wave 1 汇总
 const roleNames = ['engine', 'classification', 'frontend', 'report', 'test']
 let allPass = true
-wave1Results.forEach((r, i) => { allPass &&= !!r; log(`  ${r ? 'OK' : 'FAIL'} ${roleNames[i]}`) })
+const roleStatus = []
+wave1Results.forEach((r, i) => {
+  const ok = !!r
+  allPass &&= ok
+  roleStatus.push({ role: roleNames[i], success: ok })
+  log(`  ${ok ? 'OK' : 'FAIL'} ${roleNames[i]}`)
+})
+
+// 日志：记录失败的角色
+const failedRoles = roleStatus.filter(r => !r.success)
+if (failedRoles.length > 0) {
+  const failedNames = failedRoles.map(r => r.role).join(', ')
+  await logError('Phase 3 Wave 1', `以下角色失败: ${failedNames}`)
+}
+
+// 更新检查点
+await updateCheckpoint(
+  'Wave 1 (5 角色并行)',
+  allPass ? 'OK' : 'PARTIAL',
+  allPass
+    ? '全部 5 角色实现完成'
+    : '部分角色失败: ' + failedRoles.map(r => r.role).join(', ')
+)
 
 // guard: Wave 1 任一角色失败则终止
 if (!allPass) {
@@ -334,7 +420,7 @@ if (!allPass) {
 
 // ============================================================
 // Phase 4: 集成
-// 注意：architect 分支已在 Phase 2.5 合入 main，此处不再重复合并
+// 注意：architect 分支已在 Phase 2.5 合入 main，此处不重复合并
 // ============================================================
 phase('Integration')
 
@@ -344,10 +430,10 @@ const mergeResult = await agent(
   `# 合并 worktree 分支到 main
 
   ## 步骤
-  1. git worktree list  # 列出所有 worktree 查看分支名
+  1. git worktree list
   2. 按顺序 merge --squash 每个分支到 main:
      engine -> classification -> report -> frontend -> test
-  3. 每步: git merge --squash <分支> && git commit -m "merge <角色> worktree" && dotnet build
+  3. 每步: git merge --squash <分支> && git commit -m "merge <role> worktree" && dotnet build
 
   ## 注意
   - architect 分支已在早期阶段合并，不要再次合并
@@ -355,10 +441,11 @@ const mergeResult = await agent(
   { label: 'merge-worktrees' },
 )
 
-log(`Merge: ${mergeResult ? 'OK' : 'FAIL'}`)
+log(`Merge all worktrees: ${mergeResult ? 'OK' : 'FAIL'}`)
 
 if (!mergeResult) {
-  log('Merge failed, manual intervention needed')
+  log('Merge failed, logging error')
+  await logError('Phase 4 Integration', '合并 worktree 到 main 失败，存在冲突或编译错误')
   return { status: 'merge-failed' }
 }
 
@@ -374,18 +461,40 @@ const testResult = await agent(
 
 log(`Tests: ${testResult ? 'OK' : 'FAIL'}`)
 
+if (!testResult) {
+  await logError('Phase 4 Integration', 'dotnet test 有失败用例')
+}
+
+// ============================================================
+// 最终检查点更新
+// ============================================================
+const finalStatus = allPass && mergeResult && testResult ? 'success' : 'partial'
+await updateCheckpoint(
+  '整个开发流程',
+  finalStatus === 'success' ? 'OK' : 'PARTIAL',
+  finalStatus === 'success'
+    ? '全部阶段完成：项目骨架 -> 审查 -> 架构 -> 5 角色 -> 集成测试通过'
+    : '有阶段失败，详情见 doc/07-运行报错日志.md'
+)
+
 // 最终
 log('===== Complete =====')
-log(`Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
-log(`Wave 1: ${allPass ? 'OK All passed' : 'WARN Partial failure'}`)
-log(`Integration: ${mergeResult && testResult ? 'OK' : 'WARN Manual intervention needed'}`)
+log(`Overall: ${finalStatus === 'success' ? 'ALL OK' : 'PARTIAL'}`)
+log(`  Init: ${initResult ? 'OK' : 'FAIL'}`)
+log(`  Review: ${review.recommendation}`)
+log(`  Wave 0: ${architectResult ? 'OK' : 'FAIL'}`)
+log(`  Merge Architect: ${mergeArchitect ? 'OK' : 'FAIL'}`)
+log(`  Wave 1: ${roleStatus.map(r => `${r.role}=${r.success ? 'OK' : 'FAIL'}`).join(', ')}`)
+log(`  Integration: ${mergeResult && testResult ? 'OK' : 'PARTIAL'}`)
 
 return {
-  status: allPass && mergeResult && testResult ? 'success' : 'partial',
+  status: finalStatus,
   summary: {
     init: !!initResult,
+    review: review.recommendation,
     architect: !!architectResult,
-    wave1: wave1Results.map((r, i) => ({ role: roleNames[i], success: !!r })),
+    mergeArchitect: !!mergeArchitect,
+    wave1: roleStatus,
     integration: !!mergeResult && !!testResult,
   },
 }
