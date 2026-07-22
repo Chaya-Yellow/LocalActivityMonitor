@@ -259,6 +259,14 @@ public sealed class WindowTracker : IActivityTracker, IDisposable
             RawProcessPath = processPath,
         };
 
+        // 浏览器域名提取：从浏览器窗口标题中解析域名，供分类器判断工作/非工作
+        if (!string.IsNullOrEmpty(processName) && BrowserTracker.IsBrowser(processName))
+        {
+            var browserTracker = new BrowserTracker();
+            var browserInfo = browserTracker.Parse(title, processName);
+            newEvent.Domain = browserInfo?.Domain;
+        }
+
         // 更新当前窗口快照
         _currentHandle = handle;
         _currentProcessId = processId;
