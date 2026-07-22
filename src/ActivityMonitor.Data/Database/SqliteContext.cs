@@ -157,6 +157,17 @@ public class SqliteContext : IDisposable
                 key                 TEXT PRIMARY KEY,
                 value               TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp           TEXT NOT NULL,
+                window_title        TEXT,
+                process_name        TEXT,
+                process_id          INTEGER,
+                process_path        TEXT,
+                category            TEXT,
+                detail              TEXT
+            );
         ";
     }
 
@@ -171,6 +182,8 @@ public class SqliteContext : IDisposable
             CREATE INDEX IF NOT EXISTS idx_events_proc ON activity_events(process_name, start_time);
             CREATE INDEX IF NOT EXISTS idx_events_proj ON activity_events(project, start_time);
             CREATE INDEX IF NOT EXISTS idx_events_domain ON activity_events(domain, start_time);
+
+            CREATE INDEX IF NOT EXISTS idx_oplogs_date ON operation_logs(timestamp);
         ";
     }
 
