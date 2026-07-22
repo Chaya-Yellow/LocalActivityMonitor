@@ -1,3 +1,5 @@
+using ActivityMonitor.Core.Classification;
+
 namespace ActivityMonitor.Core.Tracking;
 
 /// <summary>
@@ -59,11 +61,15 @@ public class BrowserTracker
         var isPrivate = PrivateMarkers.Any(m =>
             windowTitle.Contains(m, StringComparison.OrdinalIgnoreCase));
 
+        // W1-M7: 置信度 — 域名可从标题中直接提取 → "exact"，否则 → "fuzzy"
+        var confidence = domain is not null ? Classification.Confidence.Exact : Classification.Confidence.Fuzzy;
+
         return new BrowserInfo
         {
             PageTitle = pageTitle,
             Domain = domain,
             IsPrivate = isPrivate,
+            Confidence = confidence,
         };
     }
 
@@ -191,4 +197,9 @@ public class BrowserInfo
 
     /// <summary>是否隐私/无痕模式。</summary>
     public bool IsPrivate { get; set; }
+
+    /// <summary>
+    /// 置信度：<c>"exact"</c>（完全匹配，含域名）或 <c>"fuzzy"</c>（模糊匹配，仅页面标题）。
+    /// </summary>
+    public string Confidence { get; set; } = Classification.Confidence.Fuzzy;
 }

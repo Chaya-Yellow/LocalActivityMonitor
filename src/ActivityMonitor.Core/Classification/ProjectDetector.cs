@@ -125,6 +125,73 @@ public class ProjectDetector
         return null;
     }
 
+    // ──────────────────────────────────────────────
+    // W1-M4: 绝对路径解析
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// 从文件路径解析出项目根目录的绝对路径。
+    /// 向上遍历目录树，找到包含 <c>.git</c> 的目录作为项目根；
+    /// 无 <c>.git</c> 时返回文件所在的最深目录绝对路径。
+    /// </summary>
+    /// <param name="filePath">文件或目录的完整路径。</param>
+    /// <returns>项目根目录的绝对路径；无法识别时返回 null。</returns>
+    public string? ResolveProjectRoot(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        // 清理路径：如果是文件取目录，如果是目录直接使用
+        var dir = filePath;
+        if (!System.IO.Directory.Exists(dir))
+        {
+            var parent = System.IO.Path.GetDirectoryName(dir);
+            if (parent is not null && System.IO.Directory.Exists(parent))
+            {
+                dir = parent;
+            }
+            else
+            {
+                // 路径不可解析时，尝试规范化后返回父级
+                try
+                {
+                    var fullPath = System.IO.Path.GetFullPath(filePath);
+                    var parentOfFull = System.IO.Path.GetDirectoryName(fullPath);
+                    return !string.IsNullOrEmpty(parentOfFull) ? parentOfFull : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
+
+        // 向上遍历寻找 .git
+        var current = new System.IO.DirectoryInfo(dir);
+        while (current is not null)
+        {
+            var gitDir = System.IO.Path.Combine(current.FullName, ".git");
+            if (System.IO.Directory.Exists(gitDir) || System.IO.File.Exists(gitDir))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        // 无 .git：返回文件所在目录的绝对路径
+        try
+        {
+            return System.IO.Path.GetFullPath(dir);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// 兜底方案：从路径末段取项目名。
     /// 优先取最后两级文件夹（如 "project/submodule"），不足则取一级。

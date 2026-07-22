@@ -131,7 +131,7 @@ public class ActivityCategorizerTests
     }
 
     [Fact]
-    public void Classify_LogonUiProcess_ReturnsSleepCategory()
+    public void Classify_LogonUiProcess_ReturnsBreakCategory()
     {
         // Arrange — logonui.exe is a system/lock-screen process
         var categorizer = new ActivityCategorizer();
@@ -140,9 +140,9 @@ public class ActivityCategorizerTests
         // Act
         var (category, workTag) = categorizer.Classify(activity);
 
-        // Assert
-        category.Should().Be(Category.Sleep);
-        workTag.Should().Be(WorkTag.Unknown);
+        // Assert — W1-M1: 锁屏标记，category=break, workTag=break
+        category.Should().Be(Category.Break);
+        workTag.Should().Be(WorkTag.Break);
     }
 
     [Fact]
