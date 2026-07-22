@@ -151,6 +151,7 @@ public sealed class ActivityEngine : IDisposable
             FinalizeCurrentEvent();
             await FlushBatchAsync();
             await _crashRecovery.MarkGracefulExitAsync(_currentEvent?.EndTime ?? _currentEvent?.StartTime);
+            await _crashRecovery.ClearPauseMarkerAsync();
             _isRunning = false; _isPaused = false;
             SetState(EngineState.Stopped);
             Debug.WriteLine("[Engine] Stopped");
@@ -362,7 +363,36 @@ public sealed class ActivityEngine : IDisposable
         try
         {
             try { Thread.CurrentThread.Priority = ThreadPriority.BelowNormal; } catch { }
-            if (_currentEvent != null) _currentEvent.DurationMs = (long)(DateTime.Now - _currentEvent.StartTime).TotalMilliseconds;
+            var now = DateTime.Now;
+            lock (_batchLock)
+            {
+                if (_currentEvent != null
+                    && _currentEvent.Category != Category.Idle
+                    && _currentEvent.Category != Category.Sleep)
+                {
+                    // 终结当前事件并加入批量队列，再创建一个续接事件继续追踪
+                    _currentEvent.EndTime = now;
+                    _currentEvent.DurationMs = (long)(now - _currentEvent.StartTime).TotalMilliseconds;
+                    _pendingBatch.Add(_currentEvent);
+
+                    _currentEvent = new ActivityEvent
+                    {
+                        StartTime = now,
+                        WindowTitle = _currentEvent.WindowTitle,
+                        ProcessName = _currentEvent.ProcessName,
+                        ProcessPath = _currentEvent.ProcessPath,
+                        ProcessId = _currentEvent.ProcessId,
+                        Category = _currentEvent.Category,
+                        WorkTag = _currentEvent.WorkTag,
+                        Detail = _currentEvent.Detail,
+                        Domain = _currentEvent.Domain,
+                        Project = _currentEvent.Project,
+                        IsContinued = true,
+                        RawWindowTitle = _currentEvent.RawWindowTitle,
+                        RawProcessPath = _currentEvent.RawProcessPath,
+                    };
+                }
+            }
             _ = FlushBatchAsync();
         }
         catch (Exception ex) { Debug.WriteLine(string.Format("[Engine] Batch timer error: {0}", ex.Message)); }
