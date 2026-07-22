@@ -7,12 +7,20 @@
              mc:Ignorable="d"
              d:DesignHeight="300" d:DesignWidth="500">
 
-    <!-- 自定义水平柱状图控件，使用 Rectangle + ItemsControl 实现 -->
+    <!-- 自定义水平柱状图控件，使用 Rectangle + ItemsControl 实现。
+         支持点击选中高亮，与外部表格联动。 -->
 
     <UserControl.Resources>
+        <!-- 名称匹配转换器：用于选中高亮 -->
+        <controls:NameMatchConverter x:Key="NameMatchConverter" />
+
+        <!-- 宽度转换器：WidthFactor * parentActualWidth -->
+        <controls:BarWidthMultiConverter x:Key="BarWidthConverter" />
+
         <!-- 柱状图单项模板 -->
         <DataTemplate x:Key="BarItemTemplate" DataType="controls:BarChartItem">
-            <Grid MinHeight="28" Margin="0,2">
+            <Grid MinHeight="28" Margin="0,2"
+                  Cursor="Hand">
                 <Grid.ColumnDefinitions>
                     <!-- 软件名称（固定宽度） -->
                     <ColumnDefinition Width="100" />
@@ -22,15 +30,34 @@
                     <ColumnDefinition Width="60" />
                 </Grid.ColumnDefinitions>
 
-                <!-- 软件名称 -->
+                <!-- 软件名称 — 选中时字体加粗变色 -->
                 <TextBlock Grid.Column="0"
-                           Text="{Binding Name}"
                            FontSize="11"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
-                           Margin="0,0,6,0"
-                           ToolTip="{Binding Name}" />
+                           Margin="0,0,6,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding Name}" />
+                            <Setter Property="ToolTip" Value="{Binding Name}" />
+                            <Style.Triggers>
+                                <!-- 选中时名称加粗变色 -->
+                                <DataTrigger Value="True">
+                                    <DataTrigger.Binding>
+                                        <MultiBinding Converter="{StaticResource NameMatchConverter}">
+                                            <Binding Path="Name" />
+                                            <Binding Path="SelectedItemName"
+                                                     RelativeSource="{RelativeSource AncestorType=controls:BarChartView}" />
+                                        </MultiBinding>
+                                    </DataTrigger.Binding>
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                    <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
                 <!-- 柱状图区域：包括柱子 + 时长标签 -->
                 <Grid Grid.Column="1" VerticalAlignment="Center">
@@ -40,18 +67,39 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Stretch" />
 
-                    <!-- 柱子矩形 -->
+                    <!-- 柱子矩形 — 支持点击选中和高亮 -->
                     <Rectangle Height="18"
                                RadiusX="3" RadiusY="3"
                                Fill="{Binding BarColor}"
                                HorizontalAlignment="Left"
-                               ToolTip="{Binding TooltipText}">
+                               ToolTip="{Binding TooltipText}"
+                               MouseLeftButtonDown="BarRectangle_MouseLeftButtonDown">
                         <Rectangle.Width>
                             <MultiBinding Converter="{StaticResource BarWidthConverter}">
                                 <Binding Path="WidthFactor" />
                                 <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" />
                             </MultiBinding>
                         </Rectangle.Width>
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Opacity" Value="0.75" />
+                                <Style.Triggers>
+                                    <!-- 选中时整条柱高亮（全不透明 + 蓝色描边） -->
+                                    <DataTrigger Value="True">
+                                        <DataTrigger.Binding>
+                                            <MultiBinding Converter="{StaticResource NameMatchConverter}">
+                                                <Binding Path="Name" />
+                                                <Binding Path="SelectedItemName"
+                                                         RelativeSource="{RelativeSource AncestorType=controls:BarChartView}" />
+                                            </MultiBinding>
+                                        </DataTrigger.Binding>
+                                        <Setter Property="Opacity" Value="1.0" />
+                                        <Setter Property="Stroke" Value="{StaticResource PrimaryBrush}" />
+                                        <Setter Property="StrokeThickness" Value="1.5" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
                     </Rectangle>
 
                     <!-- 时长标签（显示在柱子后方，避免柱子太短时文字被裁剪） -->
@@ -63,19 +111,33 @@
                                ToolTip="{Binding TooltipText}" />
                 </Grid>
 
-                <!-- 百分比文本 -->
+                <!-- 百分比文本 — 选中时加粗 -->
                 <TextBlock Grid.Column="2"
-                           Text="{Binding FormattedPercentage}"
                            FontSize="11" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Right"
-                           Margin="6,0,0,0" />
+                           Margin="6,0,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding FormattedPercentage}" />
+                            <Style.Triggers>
+                                <DataTrigger Value="True">
+                                    <DataTrigger.Binding>
+                                        <MultiBinding Converter="{StaticResource NameMatchConverter}">
+                                            <Binding Path="Name" />
+                                            <Binding Path="SelectedItemName"
+                                                     RelativeSource="{RelativeSource AncestorType=controls:BarChartView}" />
+                                        </MultiBinding>
+                                    </DataTrigger.Binding>
+                                    <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </DataTemplate>
-
-        <!-- 宽度转换器：WidthFactor * parentActualWidth -->
-        <controls:BarWidthMultiConverter x:Key="BarWidthConverter" />
     </UserControl.Resources>
 
     <Grid>

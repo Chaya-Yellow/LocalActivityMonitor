@@ -143,6 +143,40 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<BarChartItem> _monthBarItems = new();
 
+    // ──────────────── 数据表格 ────────────────
+
+    /// <summary>日视图软件表格数据。</summary>
+    [ObservableProperty]
+    private ObservableCollection<SoftwareTableItem> _dayTableItems = new();
+
+    /// <summary>周视图软件表格数据。</summary>
+    [ObservableProperty]
+    private ObservableCollection<SoftwareTableItem> _weekTableItems = new();
+
+    /// <summary>月视图软件表格数据。</summary>
+    [ObservableProperty]
+    private ObservableCollection<SoftwareTableItem> _monthTableItems = new();
+
+    // ──────────────── 选中联动 ────────────────
+
+    /// <summary>当前在柱状图或表格中选中的软件名。用于双向高亮联动。</summary>
+    [ObservableProperty]
+    private string _selectedSoftwareName = string.Empty;
+
+    // ──────────────── 总记录数（汇总行用） ────────────────
+
+    /// <summary>日视图总记录数。</summary>
+    [ObservableProperty]
+    private int _dayTotalRecordCount;
+
+    /// <summary>周视图总记录数。</summary>
+    [ObservableProperty]
+    private int _weekTotalRecordCount;
+
+    /// <summary>月视图总记录数。</summary>
+    [ObservableProperty]
+    private int _monthTotalRecordCount;
+
     // ──────────────── 周视图 ────────────────
 
     /// <summary>周报 Markdown 文本。</summary>
@@ -215,6 +249,7 @@ public partial class HistoryViewModel : ObservableObject
     {
         SelectedViewMode = HistoryViewMode.Day;
         IsRangeMode = false;
+        SelectedSoftwareName = string.Empty;
         UpdateDateLabel();
         await LoadDayDataAsync();
     }
@@ -225,6 +260,7 @@ public partial class HistoryViewModel : ObservableObject
     {
         SelectedViewMode = HistoryViewMode.Week;
         IsRangeMode = false;
+        SelectedSoftwareName = string.Empty;
         UpdateWeekLabel();
         await LoadWeekDataAsync();
     }
@@ -235,6 +271,7 @@ public partial class HistoryViewModel : ObservableObject
     {
         SelectedViewMode = HistoryViewMode.Month;
         IsRangeMode = false;
+        SelectedSoftwareName = string.Empty;
         UpdateMonthLabel();
         await LoadMonthDataAsync();
     }
@@ -319,18 +356,22 @@ public partial class HistoryViewModel : ObservableObject
         }
     }
 
-    /// <summary>加载日视图柱状图数据。</summary>
+    /// <summary>加载日视图柱状图数据（同时构建表格数据和总记录数）。</summary>
     private async Task LoadDayBarChartAsync()
     {
         try
         {
             var softwareStats = await _dailyStatsService.GetSoftwareStatsByDateAsync(SelectedDate);
             DayBarItems = BuildBarChartItems(softwareStats);
+            DayTableItems = BuildTableItems(softwareStats);
+            DayTotalRecordCount = softwareStats.Sum(s => s.RecordCount);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[HistoryVM] 日视图柱状图加载失败: {ex.Message}");
             DayBarItems = new ObservableCollection<BarChartItem>();
+            DayTableItems = new ObservableCollection<SoftwareTableItem>();
+            DayTotalRecordCount = 0;
         }
     }
 
@@ -424,11 +465,15 @@ public partial class HistoryViewModel : ObservableObject
             }
 
             WeekBarItems = BuildBarChartItems(mergedList);
+            WeekTableItems = BuildTableItems(mergedList);
+            WeekTotalRecordCount = mergedList.Sum(s => s.RecordCount);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[HistoryVM] 周视图柱状图加载失败: {ex.Message}");
             WeekBarItems = new ObservableCollection<BarChartItem>();
+            WeekTableItems = new ObservableCollection<SoftwareTableItem>();
+            WeekTotalRecordCount = 0;
         }
     }
 
@@ -502,6 +547,8 @@ public partial class HistoryViewModel : ObservableObject
             }
 
             MonthBarItems = BuildBarChartItems(mergedList);
+            MonthTableItems = BuildTableItems(mergedList);
+            MonthTotalRecordCount = mergedList.Sum(s => s.RecordCount);
 
             var ts = TimeSpan.FromMilliseconds(totalMonthMs);
             MonthTotalText = ts.TotalHours >= 1
@@ -521,6 +568,8 @@ public partial class HistoryViewModel : ObservableObject
             HasData = false;
             EmptyMessage = $"加载失败：{ex.Message}";
             MonthBarItems = new ObservableCollection<BarChartItem>();
+            MonthTableItems = new ObservableCollection<SoftwareTableItem>();
+            MonthTotalRecordCount = 0;
         }
         finally
         {
@@ -714,6 +763,14 @@ public partial class HistoryViewModel : ObservableObject
         System.Diagnostics.Debug.WriteLine($"[HistoryVM] 选中事件: Id={evt.Id}, Title={evt.WindowTitle}");
     }
 
+    /// <summary>选中软件（柱状图/表格联动）。传入软件名；重复点击则取消选中。</summary>
+    [RelayCommand]
+    private void SelectSoftware(string? name)
+    {
+        var target = name ?? string.Empty;
+        SelectedSoftwareName = (SelectedSoftwareName == target) ? string.Empty : target;
+    }
+
     // ──────────────── 辅助方法 ────────────────
 
     /// <summary>根据日期获取该周的周一和周日。</summary>
@@ -764,5 +821,22 @@ public partial class HistoryViewModel : ObservableObject
         }
 
         return new ObservableCollection<BarChartItem>(items);
+    }
+
+    /// <summary>根据 DailySoftwareStats 列表构建表格项。</summary>
+    private static ObservableCollection<SoftwareTableItem> BuildTableItems(IReadOnlyList<DailySoftwareStats> stats)
+    {
+        if (stats.Count == 0)
+            return new ObservableCollection<SoftwareTableItem>();
+
+        var items = stats.Select(s => new SoftwareTableItem
+        {
+            Name = s.Name,
+            DurationMs = s.DurationMs,
+            Percentage = s.Percentage,
+            RecordCount = s.RecordCount,
+        }).ToList();
+
+        return new ObservableCollection<SoftwareTableItem>(items);
     }
 }
