@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Threading;
 using ActivityMonitor.Core.Interfaces;
 using ActivityMonitor.Core.Models;
@@ -34,6 +35,19 @@ public partial class DashboardViewModel : ObservableObject
     private const int ReducedIntervalMs = 7_000;     // 降频 7 秒
     private const int ConsecutiveFastThreshold = 30; // 连续 30 次快速刷新后恢复 1 秒
     private int _consecutiveFastRefreshes;
+
+    // ──────────────── 误报跟踪 ────────────────
+    private readonly HashSet<long> _falsePositiveIds = new();
+
+    /// <summary>类别代码 → 显示名称映射。</summary>
+    private static readonly Dictionary<string, string> CategoryDisplayNames = new()
+    {
+        [Category.Web] = "web (网页)",
+        [Category.File] = "file (编辑)",
+        [Category.App] = "app (应用)",
+        [Category.Idle] = "idle (空闲)",
+        [Category.Sleep] = "sleep (睡眠)",
+    };
 
     // ──────────────── 可观察属性 ────────────────
 
@@ -209,20 +223,19 @@ public partial class DashboardViewModel : ObservableObject
             // 并行加载概览和时间线
             var overviewTask = _statsService.GetOverviewAsync();
             var eventsTask = _repository.GetTodayEventsAsync();
-            var appTask = _statsService.GetByAppAsync();
-            var projectTask = _statsService.GetByProjectAsync();
-            var domainTask = _statsService.GetByDomainAsync();
-            var categoryTask = _statsService.GetByCategoryAsync();
 
-            await Task.WhenAll(overviewTask, eventsTask, appTask, projectTask, domainTask, categoryTask);
+            await Task.WhenAll(overviewTask, eventsTask);
 
-            // 更新 UI（DispatcherTimer 已在 UI 线程上运行）
+            // 过滤误报记录
+            var allEvents = eventsTask.Result;
+            var filteredEvents = allEvents.Where(e => !_falsePositiveIds.Contains(e.Id)).ToList();
+
+            // 更新时间线（过滤误报后）
+            TodayEvents = new ObservableCollection<ActivityEvent>(filteredEvents);
+
+            // 从过滤后的事件重建统计和概览
             TodayOverview = overviewTask.Result;
-            TodayEvents = new ObservableCollection<ActivityEvent>(eventsTask.Result);
-            AppStats = new ObservableCollection<StatsItem>(appTask.Result);
-            ProjectStats = new ObservableCollection<StatsItem>(projectTask.Result);
-            DomainStats = new ObservableCollection<StatsItem>(domainTask.Result);
-            CategoryStats = new ObservableCollection<StatsItem>(categoryTask.Result);
+            RebuildFromEvents(filteredEvents);
         }
         catch (Exception ex)
         {
@@ -266,6 +279,7 @@ public partial class DashboardViewModel : ObservableObject
         try
         {
             await _repository.DeleteAsync(evt.Id);
+            _falsePositiveIds.Remove(evt.Id);
             TodayEvents.Remove(evt);
             // 刷新统计
             await RefreshDataAsync();
@@ -273,6 +287,30 @@ public partial class DashboardViewModel : ObservableObject
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[DashboardVM] 删除失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 将选中的活动事件标记为误报，误报记录将在实时统计中排除显示。
+    /// </summary>
+    [RelayCommand]
+    private async Task MarkAsFalsePositiveAsync(ActivityEvent? evt)
+    {
+        if (evt == null || _falsePositiveIds.Contains(evt.Id)) return;
+
+        evt.IsFalsePositive = true;
+        _falsePositiveIds.Add(evt.Id);
+
+        try
+        {
+            await _repository.UpdateAsync(evt);
+            TodayEvents.Remove(evt);
+            // 从当前过滤后的事件集合重建统计
+            RebuildFromEvents(TodayEvents.ToList());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DashboardVM] 标记误报失败: {ex.Message}");
         }
     }
 
@@ -400,5 +438,104 @@ public partial class DashboardViewModel : ObservableObject
             _consecutiveFastRefreshes = 0;
             UpdateRefreshInterval();
         }
+    }
+
+    // ──────────────── 误报处理 ────────────────
+
+    /// <summary>
+    /// 从过滤后的事件集合重新计算概览和所有维度统计。
+    /// 误报记录不会出现在统计中。
+    /// </summary>
+    private void RebuildFromEvents(List<ActivityEvent> events)
+    {
+        // 排除空闲/睡眠后计算活跃统计
+        var active = events.Where(e => e.Category != Category.Idle
+                                        && e.Category != Category.Sleep).ToList();
+
+        var totalMs = active.Sum(e => e.DurationMs);
+
+        // ── 概览（TodayOverview） ──
+        TodayOverview = new TodayOverview
+        {
+            TotalActiveMs = totalMs,
+            TotalIdleMs = events.Where(e => e.Category == Category.Idle).Sum(e => e.DurationMs),
+            TotalSleepMs = events.Where(e => e.Category == Category.Sleep).Sum(e => e.DurationMs),
+            WorkMs = events.Where(e => e.WorkTag == WorkTag.Work).Sum(e => e.DurationMs),
+            NonWorkMs = events
+                .Where(e => e.WorkTag != WorkTag.Work
+                            && e.Category != Category.Idle
+                            && e.Category != Category.Sleep)
+                .Sum(e => e.DurationMs),
+            EventCount = active.Count,
+        };
+
+        // ── 按应用（进程名）统计 ──
+        AppStats = BuildStats(active
+            .Where(e => !string.IsNullOrEmpty(e.ProcessName))
+            .GroupBy(e => e.ProcessName!), totalMs, "其他");
+
+        // ── 按项目统计 ──
+        ProjectStats = BuildStats(active
+            .Where(e => !string.IsNullOrEmpty(e.Project))
+            .GroupBy(e => e.Project!), totalMs);
+
+        // ── 按域名统计 ──
+        DomainStats = BuildStats(active
+            .Where(e => !string.IsNullOrEmpty(e.Domain))
+            .GroupBy(e => e.Domain!), totalMs);
+
+        // ── 按类别统计 ──
+        CategoryStats = new ObservableCollection<StatsItem>(
+            events
+                .GroupBy(e => e.Category)
+                .Select(g => new StatsItem
+                {
+                    Name = CategoryDisplayNames.TryGetValue(g.Key, out var display)
+                        ? display
+                        : g.Key,
+                    DurationMs = g.Sum(e => e.DurationMs),
+                    Percentage = totalMs > 0
+                        ? (double)g.Sum(e => e.DurationMs) / totalMs * 100
+                        : 0,
+                })
+                .OrderByDescending(s => s.DurationMs)
+                .ToList());
+    }
+
+    /// <summary>
+    /// 从分组数据构建 StatsItem 列表，包含占比计算和"其他"兜底。
+    /// </summary>
+    private static ObservableCollection<StatsItem> BuildStats(
+        IEnumerable<IGrouping<string, ActivityEvent>> groups, long totalMs, string fallbackName = "")
+    {
+        var items = new List<StatsItem>();
+        var accounted = 0L;
+
+        foreach (var g in groups)
+        {
+            var ms = g.Sum(e => e.DurationMs);
+            accounted += ms;
+            items.Add(new StatsItem
+            {
+                Name = g.Key,
+                DurationMs = ms,
+                Percentage = totalMs > 0 ? (double)ms / totalMs * 100 : 0,
+            });
+        }
+
+        // 未归类的余量记为"其他"
+        var other = totalMs - accounted;
+        if (other > 0)
+        {
+            items.Add(new StatsItem
+            {
+                Name = string.IsNullOrEmpty(fallbackName) ? "其他" : fallbackName,
+                DurationMs = other,
+                Percentage = totalMs > 0 ? (double)other / totalMs * 100 : 0,
+            });
+        }
+
+        return new ObservableCollection<StatsItem>(
+            items.OrderByDescending(s => s.DurationMs));
     }
 }

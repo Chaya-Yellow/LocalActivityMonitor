@@ -32,6 +32,10 @@ public partial class TimelineControl
     public static readonly DependencyProperty ViewDetailsCommandProperty =
         DependencyProperty.Register(nameof(ViewDetailsCommand), typeof(ICommand), typeof(TimelineControl));
 
+    /// <summary>标记为误报命令。</summary>
+    public static readonly DependencyProperty MarkAsFalsePositiveCommandProperty =
+        DependencyProperty.Register(nameof(MarkAsFalsePositiveCommand), typeof(ICommand), typeof(TimelineControl));
+
     public ObservableCollection<ActivityEvent>? Events
     {
         get => (ObservableCollection<ActivityEvent>?)GetValue(EventsProperty);
@@ -60,6 +64,12 @@ public partial class TimelineControl
     {
         get => (ICommand?)GetValue(ViewDetailsCommandProperty);
         set => SetValue(ViewDetailsCommandProperty, value);
+    }
+
+    public ICommand? MarkAsFalsePositiveCommand
+    {
+        get => (ICommand?)GetValue(MarkAsFalsePositiveCommandProperty);
+        set => SetValue(MarkAsFalsePositiveCommandProperty, value);
     }
 
     public TimelineControl()

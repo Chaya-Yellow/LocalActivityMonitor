@@ -15,7 +15,8 @@
                 EventData="{Binding}"
                 EditCommand="{Binding ElementName=Root, Path=EditEventCommand}"
                 DeleteCommand="{Binding ElementName=Root, Path=DeleteEventCommand}"
-                ViewDetailsCommand="{Binding ElementName=Root, Path=ViewDetailsCommand}" />
+                ViewDetailsCommand="{Binding ElementName=Root, Path=ViewDetailsCommand}"
+                MarkAsFalsePositiveCommand="{Binding ElementName=Root, Path=MarkAsFalsePositiveCommand}" />
         </DataTemplate>
     </UserControl.Resources>
 

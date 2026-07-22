@@ -75,6 +75,12 @@ public class ActivityEvent
     public string? UserCategory { get; set; }
 
     /// <summary>
+    /// 是否被用户标记为误报（通过右键菜单标记）。
+    /// 误报记录将在实时统计中排除显示。
+    /// </summary>
+    public bool IsFalsePositive { get; set; }
+
+    /// <summary>
     /// 原始窗口标题（捕获时的完整标题，不做任何截断/处理）。
     /// 用于来源追溯（F2.6），与 <see cref="WindowTitle"/> 的区别在于
     /// 该字段始终保留轮询时刻从 GetWindowText 获取的原始值。

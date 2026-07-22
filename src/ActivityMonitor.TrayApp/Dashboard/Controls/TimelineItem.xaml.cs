@@ -32,6 +32,10 @@ public partial class TimelineItem
     public static readonly DependencyProperty ViewDetailsCommandProperty =
         DependencyProperty.Register(nameof(ViewDetailsCommand), typeof(ICommand), typeof(TimelineItem));
 
+    /// <summary>标记为误报命令。</summary>
+    public static readonly DependencyProperty MarkAsFalsePositiveCommandProperty =
+        DependencyProperty.Register(nameof(MarkAsFalsePositiveCommand), typeof(ICommand), typeof(TimelineItem));
+
     // ──────────────── 计算属性（只读） ────────────────
 
     private static readonly DependencyPropertyKey StartTimeTextPropertyKey =
@@ -94,6 +98,12 @@ public partial class TimelineItem
     {
         get => (ICommand?)GetValue(ViewDetailsCommandProperty);
         set => SetValue(ViewDetailsCommandProperty, value);
+    }
+
+    public ICommand? MarkAsFalsePositiveCommand
+    {
+        get => (ICommand?)GetValue(MarkAsFalsePositiveCommandProperty);
+        set => SetValue(MarkAsFalsePositiveCommandProperty, value);
     }
 
     public string StartTimeText => (string)GetValue(StartTimeTextProperty);
