@@ -112,17 +112,11 @@ public class TodayStatsService : ITodayStatsService
     }
 
     /// <summary>
-    /// 获取当天的所有活动事件（缓存，避免多次查询）。
+    /// 获取当天的所有活动事件（每次都实时查询，确保 Dashboard 能看到最新数据）。
     /// </summary>
-    private List<ActivityEvent>? _cachedEvents;
     private async Task<List<ActivityEvent>> GetTodayEventsAsync()
     {
-        if (_cachedEvents is null)
-        {
-            _cachedEvents = await _repository.GetTodayEventsAsync();
-        }
-
-        return _cachedEvents;
+        return await _repository.GetTodayEventsAsync();
     }
 
     /// <summary>

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Windows.Threading;
 using ActivityMonitor.Core.Interfaces;
 using ActivityMonitor.Core.Models;
-using ActivityMonitor.TrayApp.Mock;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -179,13 +178,16 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
-    public DashboardViewModel()
+    public DashboardViewModel(
+        ITodayStatsService statsService,
+        IActivityRepository repository,
+        IReportExporter exporter,
+        ITimeSegmentStatsService timeSegmentService)
     {
-        // 使用 Mock 实现先行开发，后期替换为 DI 注入
-        _statsService = new MockTodayStatsService();
-        _repository = new MockActivityRepository();
-        _exporter = new MockReportExporter();
-        _timeSegmentService = new MockTimeSegmentStatsService();
+        _statsService = statsService ?? throw new ArgumentNullException(nameof(statsService));
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _exporter = exporter ?? throw new ArgumentNullException(nameof(exporter));
+        _timeSegmentService = timeSegmentService ?? throw new ArgumentNullException(nameof(timeSegmentService));
 
         // 设置日期标签
         var now = DateTime.Now;
@@ -229,14 +231,19 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 辅助方法：将毫秒数格式化为可读文本（如 "2h 30m"）。
+    /// 辅助方法：将毫秒数格式化为可读文本（如 "2h 30m"、"45m"、"30s"）。
     /// </summary>
     private static string FormatDuration(long ms)
     {
         var ts = TimeSpan.FromMilliseconds(ms);
-        return ts.TotalHours >= 1
-            ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
-            : $"{ts.Minutes}m";
+
+        if (ts.TotalHours >= 1)
+            return $"{(int)ts.TotalHours}h {ts.Minutes}m";
+
+        if (ts.TotalMinutes >= 1)
+            return $"{ts.Minutes}m";
+
+        return $"{ts.Seconds}s";
     }
 
     /// <summary>
