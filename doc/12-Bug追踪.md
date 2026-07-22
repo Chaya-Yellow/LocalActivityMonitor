@@ -24,7 +24,7 @@
 
 | 编号 | 测试用例 | 现象（实际 vs 预期） | 责任人 | 涉及文件:行号 | 状态 | 备注 |
 |:----:|---------|-------------------|:------:|:-------------|:----:|:----:|
-| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🟢 已修复 | 空事件时 Date 错误 → fix/report-bug-001 |
+| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🔴 待修复 | 复测编译失败：DailyReportBuilderTests.cs 未同步新签名 Build(DateTime,events,...) |
 
 ---
 
@@ -52,7 +52,7 @@
 
 | 编号 | 摘要 | 状态 |
 |:----:|------|:----:|
-| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🟢 已修复 |
+| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🔴 待修复 |
 
 ### 技术架构师（数据层/接口/Win32）
 
@@ -81,5 +81,12 @@
   ..." to contain "2026-07-21".
   ```
 - **发现日期：** 2026-07-22
+- **修复分支：** `fix/report-bug-001`
+- **修复方案：** `Build()` 签名改为 `Build(DateTime, IReadOnlyList<ActivityEvent>, DailySummary?)`
+- **复测结果（2026-07-22）：** ❌ 修复后未同步更新 `DailyReportBuilderTests.cs`，20+ 行调用旧签名 `Build(events, summary)` 导致编译失败
+  ```
+  DailyReportBuilderTests.cs(205,29): error CS7036: 未提供与"DailyReportBuilder.Build(DateTime, IReadOnlyList<ActivityEvent>, DailySummary?)"的所需参数"events"对应的参数
+  ```
+  **结论：** 源代码修复正确，但测试文件未同步更新，无法编译验证。需数据报表工程师更新测试后重新复测。
 
 ---

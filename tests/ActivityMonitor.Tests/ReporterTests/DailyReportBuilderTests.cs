@@ -67,12 +67,14 @@ public class DailyReportBuilderTests
     public void Build_NoEvents_ReturnsEmptyData()
     {
         // Arrange
+        var date = new DateTime(2026, 7, 21);
         var events = Array.Empty<ActivityEvent>();
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
+        data.Date.Should().Be(date);
         data.TotalActiveMs.Should().Be(0);
         data.TotalIdleMs.Should().Be(0);
         data.TotalSleepMs.Should().Be(0);
@@ -98,7 +100,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.Date.Should().Be(date);
@@ -137,7 +139,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.TotalActiveMs.Should().Be(3600000 + 1800000 + 1200000 + 2400000); // 9000000
@@ -162,7 +164,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.TotalActiveMs.Should().Be(3600000 + 900000 + 1800000); // 6300000
@@ -182,7 +184,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.TotalActiveMs.Should().Be(3600000 + 1800000); // 5400000
@@ -202,7 +204,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.WorkMs.Should().Be(7200000);
@@ -221,7 +223,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.WorkRatio.Should().Be(0);
@@ -242,7 +244,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries.Should().HaveCount(1);
@@ -260,7 +262,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries.Should().BeEmpty();
@@ -278,7 +280,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries.Should().BeEmpty();
@@ -296,7 +298,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries.Should().HaveCount(1);
@@ -315,7 +317,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries.Should().HaveCount(1);
@@ -341,7 +343,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.AppBreakdown.Should().ContainKey("code.exe").WhoseValue.Should().Be(5400000);
@@ -362,7 +364,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.AppBreakdown.Should().HaveCount(1);
@@ -384,7 +386,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.ProjectBreakdown.Should().ContainKey("ProjectA").WhoseValue.Should().Be(5400000);
@@ -404,7 +406,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.DomainBreakdown.Should().ContainKey("github.com").WhoseValue.Should().Be(3000000);
@@ -423,7 +425,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.DomainBreakdown.Should().HaveCount(1);
@@ -450,7 +452,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events, summary);
+        var data = _builder.Build(date, events, summary);
 
         // Assert
         data.UserNotes.Should().Be("今天修复了3个生产环境bug");
@@ -467,7 +469,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events, summary: null);
+        var data = _builder.Build(date, events, summary: null);
 
         // Assert
         data.UserNotes.Should().BeNull();
@@ -488,7 +490,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         var entry = data.MorningEntries[0];
@@ -507,7 +509,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.AfternoonEntries.Should().HaveCount(1);
@@ -526,7 +528,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.AfternoonEntries.Should().HaveCount(1);
@@ -555,7 +557,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries[0].WindowTitle.Should().Be("user-edited title");
@@ -583,7 +585,7 @@ public class DailyReportBuilderTests
         };
 
         // Act
-        var data = _builder.Build(events);
+        var data = _builder.Build(date, events);
 
         // Assert
         data.MorningEntries[0].Detail.Should().Be("user description");
