@@ -36,7 +36,7 @@ public class MarkdownExporter : IReportExporter
     {
         var events = await _eventRepo.GetByDateAsync(date);
         var summary = await _summaryRepo.GetAsync(date.ToString("yyyy-MM-dd"));
-        var data = _builder.Build(events, summary);
+        var data = _builder.Build(date, events, summary);
         return FormatMarkdown(data);
     }
 
