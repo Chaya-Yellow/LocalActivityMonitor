@@ -24,6 +24,7 @@
 
 | 编号 | 测试用例 | 现象（实际 vs 预期） | 责任人 | 涉及文件:行号 | 状态 | 备注 |
 |:----:|---------|-------------------|:------:|:-------------|:----:|:----:|
+| BUG-002 | Dispose_AfterDispose_IsRunningFalse | 实际:IsRunning=true 预期:IsRunning=false | 后端引擎工程师 | WindowSwitchLogger.cs:192 | 🔴 待修复 | Dispose 没有将 _isRunning 置 false |
 | BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | ✅ 已关闭 | 复测通过，183 tests passed |
 
 ---
@@ -34,7 +35,7 @@
 
 | 编号 | 摘要 | 状态 |
 |:----:|------|:----:|
-| — | 暂无 | — |
+| BUG-002 | WindowSwitchLogger.Dispose() 不重置 _isRunning | 🔴 待修复 |
 
 ### 前端工程师
 
@@ -66,7 +67,18 @@
 
 > 每个 Bug 展开写在这里，包括复现步骤、环境信息、截图/日志。
 
-### BUG-001: ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections
+### BUG-002: WindowSwitchLogger.Dispose() 不重置 _isRunning
+- **责任人：** 后端引擎工程师
+- **涉及文件：** WindowSwitchLogger.cs:192
+- **复现步骤：**
+  1. 创建 `WindowSwitchLogger` 并调用 `Start()`
+  2. 调用 `Dispose()`
+  3. 检查 `IsRunning` 属性
+- **实际结果：** `IsRunning` 返回 `true`（因为 `Dispose()` 没有设置 `_isRunning = false`）
+- **预期结果：** `IsRunning` 应返回 `false`（组件已释放，不再运行）
+- **影响：** 轻微。Dispose 后其他操作都会正确抛出 `ObjectDisposedException`，仅 `IsRunning` 的值有误导性
+- **建议修复：** 在 `Dispose()` 中添加 `_isRunning = false;`
+- **发现日期：** 2026-07-22
 - **责任人：** 数据报表工程师
 - **涉及文件：** DailyReportBuilder.cs:27
 - **复现步骤：**
