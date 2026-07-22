@@ -296,4 +296,22 @@ public class MockActivityRepository : IActivityRepository
         var events = GenerateTodayEvents();
         return Task.FromResult(events.FirstOrDefault(e => e.Id == id));
     }
+
+    public Task<EventSourceInfo?> GetSourceInfoAsync(long id)
+    {
+        var events = GenerateTodayEvents();
+        var ev = events.FirstOrDefault(e => e.Id == id);
+        if (ev is null)
+            return Task.FromResult<EventSourceInfo?>(null);
+
+        return Task.FromResult<EventSourceInfo?>(new EventSourceInfo
+        {
+            EventId = ev.Id,
+            RawWindowTitle = ev.RawWindowTitle ?? ev.WindowTitle,
+            RawProcessPath = ev.RawProcessPath ?? ev.ProcessPath,
+            ProcessName = ev.ProcessName,
+            StartTime = ev.StartTime,
+            EndTime = ev.EndTime,
+        });
+    }
 }

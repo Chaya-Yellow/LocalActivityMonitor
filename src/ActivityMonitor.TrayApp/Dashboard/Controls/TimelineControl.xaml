@@ -14,7 +14,8 @@
             <controls:TimelineItem
                 EventData="{Binding}"
                 EditCommand="{Binding ElementName=Root, Path=EditEventCommand}"
-                DeleteCommand="{Binding ElementName=Root, Path=DeleteEventCommand}" />
+                DeleteCommand="{Binding ElementName=Root, Path=DeleteEventCommand}"
+                ViewDetailsCommand="{Binding ElementName=Root, Path=ViewDetailsCommand}" />
         </DataTemplate>
     </UserControl.Resources>
 

@@ -29,6 +29,20 @@
             Margin="0,2"
             BorderThickness="0"
             MinHeight="52">
+        <Border.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="🔍 查看详情"
+                          Command="{Binding ElementName=Root, Path=ViewDetailsCommand}"
+                          CommandParameter="{Binding ElementName=Root, Path=EventData}" />
+                <Separator />
+                <MenuItem Header="✏ 编辑"
+                          Command="{Binding ElementName=Root, Path=EditCommand}"
+                          CommandParameter="{Binding ElementName=Root, Path=EventData}" />
+                <MenuItem Header="🗑 删除"
+                          Command="{Binding ElementName=Root, Path=DeleteCommand}"
+                          CommandParameter="{Binding ElementName=Root, Path=EventData}" />
+            </ContextMenu>
+        </Border.ContextMenu>
         <Grid>
             <Grid.ColumnDefinitions>
                 <!-- 类别色条 -->

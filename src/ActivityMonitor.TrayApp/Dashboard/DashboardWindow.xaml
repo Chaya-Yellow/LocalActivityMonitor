@@ -21,6 +21,8 @@
             <RowDefinition Height="Auto" />
             <!-- 摘要卡片行 -->
             <RowDefinition Height="Auto" />
+            <!-- 暂停状态横幅 -->
+            <RowDefinition Height="Auto" />
             <!-- 主内容区 -->
             <RowDefinition Height="*" />
             <!-- 底部操作栏 -->
@@ -117,8 +119,32 @@
                                   Margin="4,0,0,0" />
         </Grid>
 
+        <!-- ═══════ 暂停状态横幅 ═══════ -->
+        <Border Grid.Row="2"
+                Margin="0,0,0,8"
+                Padding="10,6"
+                CornerRadius="6"
+                BorderThickness="0">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMonitoring}" Value="False">
+                            <Setter Property="Background" Value="#FDE7E7" />
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock FontSize="13" FontWeight="SemiBold"
+                       Foreground="#D13438"
+                       VerticalAlignment="Center">
+                ⚠️ 监控已暂停 — 暂停期间不追踪活动，点击"恢复监控"继续记录
+            </TextBlock>
+        </Border>
+
         <!-- ═══════ 主内容区：时间线 + 实时统计 ═══════ -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*" />
                 <ColumnDefinition Width="10" />
@@ -130,7 +156,8 @@
                                       Events="{Binding TodayEvents}"
                                       EditEventCommand="{Binding EditEventCommand}"
                                       DeleteEventCommand="{Binding DeleteEventCommand}"
-                                      InsertOfflineCommand="{Binding InsertOfflineActivityCommand}" />
+                                      InsertOfflineCommand="{Binding InsertOfflineActivityCommand}"
+                                      ViewDetailsCommand="{Binding ViewDetailsCommand}" />
 
             <!-- 右侧：实时统计 -->
             <controls:RealTimeStatsControl Grid.Column="2"
@@ -142,7 +169,7 @@
         </Grid>
 
         <!-- ═══════ 底部操作栏 ═══════ -->
-        <Border Grid.Row="3" Margin="0,12,0,0" Padding="0,8,0,0"
+        <Border Grid.Row="4" Margin="0,12,0,0" Padding="0,8,0,0"
                 BorderThickness="0,1,0,0"
                 BorderBrush="#E0E0E0">
 
@@ -156,7 +183,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Button Grid.Column="0"
-                        Content="📝 编辑日报"
+                        Content="📝 导出日报"
                         Style="{StaticResource PrimaryButton}"
                         Command="{Binding OpenReportEditorCommand}"
                         Margin="0,0,8,0" />
@@ -167,6 +194,15 @@
                         Background="{StaticResource TextSecondaryBrush}"
                         Command="{Binding OpenHistoryCommand}"
                         Margin="0,0,0,0" />
+
+                <TextBlock Grid.Column="2"
+                           FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0">
+                    <Run Text="最后刷新：" />
+                    <Run Text="{Binding LastRefreshText}" />
+                </TextBlock>
 
                 <Button Grid.Column="3"
                         Content="⚙ 设置"
@@ -184,7 +220,7 @@
         </Border>
 
         <!-- 加载遮罩（使用 DataTrigger 切换可见性） -->
-        <Border Grid.RowSpan="4"
+        <Border Grid.RowSpan="5"
                 Background="#40FFFFFF">
             <Border.Style>
                 <Style TargetType="Border">

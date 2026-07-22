@@ -28,6 +28,10 @@ public partial class TimelineItem
     public static readonly DependencyProperty DeleteCommandProperty =
         DependencyProperty.Register(nameof(DeleteCommand), typeof(ICommand), typeof(TimelineItem));
 
+    /// <summary>查看详情命令（来源追溯 W0-M6）。</summary>
+    public static readonly DependencyProperty ViewDetailsCommandProperty =
+        DependencyProperty.Register(nameof(ViewDetailsCommand), typeof(ICommand), typeof(TimelineItem));
+
     // ──────────────── 计算属性（只读） ────────────────
 
     private static readonly DependencyPropertyKey StartTimeTextPropertyKey =
@@ -84,6 +88,12 @@ public partial class TimelineItem
     {
         get => (ICommand?)GetValue(DeleteCommandProperty);
         set => SetValue(DeleteCommandProperty, value);
+    }
+
+    public ICommand? ViewDetailsCommand
+    {
+        get => (ICommand?)GetValue(ViewDetailsCommandProperty);
+        set => SetValue(ViewDetailsCommandProperty, value);
     }
 
     public string StartTimeText => (string)GetValue(StartTimeTextProperty);

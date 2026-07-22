@@ -177,6 +177,25 @@ public class MarkdownExporter : IReportExporter
                     sb.Append(" · ");
                     sb.Append(entry.WindowTitle);
                 }
+
+                // 来源追溯：原始进程路径（F2.6）
+                if (!string.IsNullOrWhiteSpace(entry.RawProcessPath))
+                {
+                    sb.AppendLine();
+                    sb.Append("  └ _");
+                    sb.Append(entry.RawProcessPath);
+                    sb.Append('_');
+                }
+
+                // 来源追溯：原始窗口标题（仅在与当前标题不同时显示）
+                if (!string.IsNullOrWhiteSpace(entry.RawWindowTitle)
+                    && !string.Equals(entry.RawWindowTitle, entry.WindowTitle, StringComparison.Ordinal))
+                {
+                    sb.AppendLine();
+                    sb.Append("  └ _原始标题：");
+                    sb.Append(entry.RawWindowTitle);
+                    sb.Append('_');
+                }
             }
 
             sb.AppendLine();

@@ -28,6 +28,10 @@ public partial class TimelineControl
     public static readonly DependencyProperty InsertOfflineCommandProperty =
         DependencyProperty.Register(nameof(InsertOfflineCommand), typeof(ICommand), typeof(TimelineControl));
 
+    /// <summary>查看详情命令（来源追溯 W0-M6）。</summary>
+    public static readonly DependencyProperty ViewDetailsCommandProperty =
+        DependencyProperty.Register(nameof(ViewDetailsCommand), typeof(ICommand), typeof(TimelineControl));
+
     public ObservableCollection<ActivityEvent>? Events
     {
         get => (ObservableCollection<ActivityEvent>?)GetValue(EventsProperty);
@@ -50,6 +54,12 @@ public partial class TimelineControl
     {
         get => (ICommand?)GetValue(InsertOfflineCommandProperty);
         set => SetValue(InsertOfflineCommandProperty, value);
+    }
+
+    public ICommand? ViewDetailsCommand
+    {
+        get => (ICommand?)GetValue(ViewDetailsCommandProperty);
+        set => SetValue(ViewDetailsCommandProperty, value);
     }
 
     public TimelineControl()

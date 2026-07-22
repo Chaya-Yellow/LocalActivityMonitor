@@ -39,7 +39,13 @@ public sealed class ActivityEngine : IDisposable
     private CancellationTokenSource? _engineCts;
     private bool _isRunning;
     private bool _isPaused;
+    private bool _isIdle;
+    private bool _isSleeping;
     private bool _disposed;
+
+    // ── 暂停时段历史（供日报调用） ──
+    private readonly List<PauseSegment> _pauseHistory = new();
+    private DateTime? _pauseStartTime;
 
     // ── 配置 ──
     private const int StartupDelayMs = 10_000;
@@ -50,6 +56,12 @@ public sealed class ActivityEngine : IDisposable
     /// <summary>引擎状态变更事件。</summary>
     public event EventHandler<EngineState>? OnEngineStateChanged;
 
+    /// <summary>空闲状态变更事件（W0-M2: Dashboard 刷新降频联动）。</summary>
+    public event EventHandler<bool>? IdleStateChanged;
+
+    /// <summary>睡眠状态变更事件（W0-M2: 唤醒后恢复刷新）。</summary>
+    public event EventHandler<bool>? SleepStateChanged;
+
     /// <summary>当前引擎状态。</summary>
     public EngineState State { get; private set; } = EngineState.Stopped;
 
@@ -58,6 +70,17 @@ public sealed class ActivityEngine : IDisposable
 
     /// <summary>当前是否暂停。</summary>
     public bool IsPaused => _isPaused;
+
+    /// <summary>当前是否空闲。</summary>
+    public bool IsIdle => _isIdle;
+
+    /// <summary>当前是否睡眠。</summary>
+    public bool IsSleeping => _isSleeping;
+
+    /// <summary>
+    /// 暂停时段历史记录（供日报调用，F11.8）。
+    /// </summary>
+    public IReadOnlyList<PauseSegment> PauseHistory => _pauseHistory.AsReadOnly();
 
     // ──────────────────────────────────────────────
     // 构造函数
@@ -110,6 +133,9 @@ public sealed class ActivityEngine : IDisposable
             // ── Step 1: 崩溃恢复检测 ──
             await PerformCrashRecoveryAsync();
 
+            // W0-M3: 检查上次是否因崩溃处于暂停状态
+            bool wasPaused = await _crashRecovery.WasPausedOnCrashAsync();
+
             // ── Step 2: 启动延迟 ──
             Debug.WriteLine("[Engine] Startup delay 10s...");
             try
@@ -127,20 +153,37 @@ public sealed class ActivityEngine : IDisposable
             _sleepDetector.OnSleepStateChanged += OnSleepStateChanged;
 
             // ── Step 4: 启动子组件 ──
-            _tracker.Start();
+            // 空闲和睡眠检测器始终启动（即便处于暂停状态也要监听）
             _idleDetector.Start();
             _sleepDetector.Start();
+
+            // W0-M3: 暂停态崩溃恢复 → 启动但不激活追踪器
+            if (wasPaused)
+            {
+                // 崩溃发生在暂停状态 → 保持暂停，不启动追踪器
+                _isRunning = true;
+                _isPaused = true;
+                _pauseStartTime = DateTime.Now; // 从此刻开始计时
+                SetState(EngineState.Paused);
+                Debug.WriteLine("[Engine] Started in paused state (crash recovery)");
+            }
+            else
+            {
+                // 正常启动 → 启动追踪器
+                _tracker.Start();
+            }
 
             // ── Step 5: 批量写入定时器 ──
             _batchTimer = new Timer(BatchFlushIntervalMs) { AutoReset = true };
             _batchTimer.Elapsed += OnBatchTimerElapsed;
             _batchTimer.Start();
 
-            _isRunning = true;
-            _isPaused = false;
-            SetState(EngineState.Running);
-
-            Debug.WriteLine("[Engine] Started");
+            if (!wasPaused)
+            {
+                _isPaused = false;
+                SetState(EngineState.Running);
+                Debug.WriteLine("[Engine] Started");
+            }
         }
         catch (Exception ex)
         {
@@ -173,6 +216,18 @@ public sealed class ActivityEngine : IDisposable
             _idleDetector.OnIdleStateChanged -= OnIdleStateChanged;
             _sleepDetector.OnSleepStateChanged -= OnSleepStateChanged;
 
+            // W0-M3: 停止时记录进行中的暂停时段
+            if (_isPaused && _pauseStartTime.HasValue)
+            {
+                var segment = new PauseSegment
+                {
+                    StartTime = _pauseStartTime.Value,
+                    EndTime = DateTime.Now,
+                };
+                _pauseHistory.Add(segment);
+                _pauseStartTime = null;
+            }
+
             // 停止子组件
             _tracker.Stop();
             _idleDetector.Stop();
@@ -203,6 +258,7 @@ public sealed class ActivityEngine : IDisposable
 
     /// <summary>
     /// 暂停追踪。结束当前事件并刷新。
+    /// 记录暂停起始时间（W0-M3 暂停时长数据）。
     /// </summary>
     public async Task PauseAsync()
     {
@@ -210,6 +266,7 @@ public sealed class ActivityEngine : IDisposable
         if (!_isRunning || _isPaused) return;
 
         _isPaused = true;
+        _pauseStartTime = DateTime.Now;
 
         try
         {
@@ -217,6 +274,9 @@ public sealed class ActivityEngine : IDisposable
             await FlushBatchAsync();
 
             _tracker.Pause();
+
+            // W0-M3: 写入暂停标记文件（暂停态崩溃恢复）
+            await _crashRecovery.MarkPausedAsync();
 
             SetState(EngineState.Paused);
             Debug.WriteLine("[Engine] Paused");
@@ -229,6 +289,7 @@ public sealed class ActivityEngine : IDisposable
 
     /// <summary>
     /// 恢复追踪。立即捕获当前窗口。
+    /// 记录暂停时段（W0-M3 暂停时长数据）。
     /// </summary>
     public async Task ResumeAsync()
     {
@@ -240,6 +301,21 @@ public sealed class ActivityEngine : IDisposable
         try
         {
             _tracker.Resume();
+
+            // ── 记录暂停时段 (W0-M3: 暂停时长数据供日报调用) ──
+            if (_pauseStartTime.HasValue)
+            {
+                var segment = new PauseSegment
+                {
+                    StartTime = _pauseStartTime.Value,
+                    EndTime = DateTime.Now,
+                };
+                _pauseHistory.Add(segment);
+                _pauseStartTime = null;
+            }
+
+            // W0-M3: 清除暂停标记（恢复后不再需要）
+            await _crashRecovery.ClearPauseMarkerAsync();
 
             // 立即捕获当前前台窗口作为新事件
             CaptureCurrentWindow();
@@ -376,6 +452,18 @@ public sealed class ActivityEngine : IDisposable
     {
         if (_disposed || _isPaused) return;
 
+        _isIdle = isIdle;
+
+        // W0-M2: 转发空闲状态变更给 Dashboard 等外部订阅者
+        try
+        {
+            IdleStateChanged?.Invoke(this, isIdle);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Engine] Idle state forward error: {ex.Message}");
+        }
+
         try
         {
             if (isIdle)
@@ -396,6 +484,18 @@ public sealed class ActivityEngine : IDisposable
     private void OnSleepStateChanged(object? sender, bool isSleeping)
     {
         if (_disposed || _isPaused) return;
+
+        _isSleeping = isSleeping;
+
+        // W0-M2: 转发睡眠状态变更给 Dashboard 等外部订阅者
+        try
+        {
+            SleepStateChanged?.Invoke(this, isSleeping);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Engine] Sleep state forward error: {ex.Message}");
+        }
 
         try
         {
@@ -480,6 +580,8 @@ public sealed class ActivityEngine : IDisposable
                     Domain = _lastActiveEvent.Domain,
                     Project = _lastActiveEvent.Project,
                     IsContinued = true,
+                    RawWindowTitle = _lastActiveEvent.RawWindowTitle,
+                    RawProcessPath = _lastActiveEvent.RawProcessPath,
                 };
                 _currentEvent = continued;
                 _lastActiveEvent = null;
@@ -605,6 +707,8 @@ public sealed class ActivityEngine : IDisposable
                 ProcessId = (int)processId,
                 Category = Category.App,
                 WorkTag = WorkTag.Unknown,
+                RawWindowTitle = title,
+                RawProcessPath = processPath,
             };
         }
         catch (Exception ex)
@@ -742,4 +846,23 @@ public enum EngineState
 
     /// <summary>正在停止。</summary>
     Stopping,
+}
+
+/// <summary>
+/// 暂停时段记录（W0-M3 / F11.8 暂停时长数据）。
+/// 一次暂停从 PauseAsync() 到 ResumeAsync() 的时间窗口。
+/// </summary>
+public class PauseSegment
+{
+    /// <summary>暂停开始时间。</summary>
+    public DateTime StartTime { get; set; }
+
+    /// <summary>恢复时间。</summary>
+    public DateTime EndTime { get; set; }
+
+    /// <summary>暂停时长（毫秒）。</summary>
+    public long DurationMs => (long)(EndTime - StartTime).TotalMilliseconds;
+
+    /// <summary>格式化的暂停时段描述，如 "09:30-09:45"。</summary>
+    public string FormattedRange => $"{StartTime:HH:mm}-{EndTime:HH:mm}";
 }

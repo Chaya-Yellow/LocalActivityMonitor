@@ -33,13 +33,15 @@ public class ActivityEventRepository
                  window_title, process_name, process_path, process_id,
                  detail, domain, project, keywords,
                  is_continued, is_private, is_crash_recovered,
-                 edited_title, edited_desc, user_category)
+                 edited_title, edited_desc, user_category,
+                 raw_window_title, raw_process_path)
             VALUES
                 (@start_time, @end_time, @duration_ms, @category, @work_tag, @sub_category,
                  @window_title, @process_name, @process_path, @process_id,
                  @detail, @domain, @project, @keywords,
                  @is_continued, @is_private, @is_crash_recovered,
-                 @edited_title, @edited_desc, @user_category);
+                 @edited_title, @edited_desc, @user_category,
+                 @raw_window_title, @raw_process_path);
 
             SELECT last_insert_rowid();";
 
@@ -64,13 +66,15 @@ public class ActivityEventRepository
                  window_title, process_name, process_path, process_id,
                  detail, domain, project, keywords,
                  is_continued, is_private, is_crash_recovered,
-                 edited_title, edited_desc, user_category)
+                 edited_title, edited_desc, user_category,
+                 raw_window_title, raw_process_path)
             VALUES
                 (@start_time, @end_time, @duration_ms, @category, @work_tag, @sub_category,
                  @window_title, @process_name, @process_path, @process_id,
                  @detail, @domain, @project, @keywords,
                  @is_continued, @is_private, @is_crash_recovered,
-                 @edited_title, @edited_desc, @user_category);";
+                 @edited_title, @edited_desc, @user_category,
+                 @raw_window_title, @raw_process_path);";
 
         using var connection = await _db.GetConnectionAsync();
         using var transaction = connection.BeginTransaction();
@@ -167,7 +171,9 @@ public class ActivityEventRepository
                 is_crash_recovered = @is_crash_recovered,
                 edited_title = @edited_title,
                 edited_desc = @edited_desc,
-                user_category = @user_category
+                user_category = @user_category,
+                raw_window_title = @raw_window_title,
+                raw_process_path = @raw_process_path
             WHERE id = @id;";
 
         using var connection = await _db.GetConnectionAsync();
@@ -273,6 +279,8 @@ public class ActivityEventRepository
         cmd.Parameters.AddWithValue("@edited_title", (object?)@event.EditedTitle ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@edited_desc", (object?)@event.EditedDesc ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@user_category", (object?)@event.UserCategory ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@raw_window_title", (object?)@event.RawWindowTitle ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@raw_process_path", (object?)@event.RawProcessPath ?? DBNull.Value);
     }
 
     /// <summary>
@@ -350,6 +358,54 @@ public class ActivityEventRepository
         if (!reader.IsDBNull(reader.GetOrdinal("user_category")))
             @event.UserCategory = reader.GetString(reader.GetOrdinal("user_category"));
 
+        if (!reader.IsDBNull(reader.GetOrdinal("raw_window_title")))
+            @event.RawWindowTitle = reader.GetString(reader.GetOrdinal("raw_window_title"));
+
+        if (!reader.IsDBNull(reader.GetOrdinal("raw_process_path")))
+            @event.RawProcessPath = reader.GetString(reader.GetOrdinal("raw_process_path"));
+
         return @event;
+    }
+
+    /// <summary>
+    /// 根据事件 ID 获取来源追溯信息（原始窗口标题 + 完整进程路径）。
+    /// 仅查询所需字段，避免全表扫描开销。
+    /// </summary>
+    public async Task<EventSourceInfo?> GetSourceInfoAsync(long id)
+    {
+        const string sql = @"
+            SELECT id, raw_window_title, raw_process_path, process_name,
+                   start_time, end_time
+            FROM activity_events
+            WHERE id = @id;";
+
+        using var connection = await _db.GetConnectionAsync();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("@id", id);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new EventSourceInfo
+            {
+                EventId = reader.GetInt64(reader.GetOrdinal("id")),
+                RawWindowTitle = reader.IsDBNull(reader.GetOrdinal("raw_window_title"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("raw_window_title")),
+                RawProcessPath = reader.IsDBNull(reader.GetOrdinal("raw_process_path"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("raw_process_path")),
+                ProcessName = reader.IsDBNull(reader.GetOrdinal("process_name"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("process_name")),
+                StartTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("start_time"))),
+                EndTime = reader.IsDBNull(reader.GetOrdinal("end_time"))
+                    ? null
+                    : DateTime.Parse(reader.GetString(reader.GetOrdinal("end_time"))),
+            };
+        }
+
+        return null;
     }
 }

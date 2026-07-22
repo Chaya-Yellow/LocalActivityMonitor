@@ -17,6 +17,9 @@ public sealed class CrashRecoveryService : IDisposable
     /// <summary>退出标记文件名。</summary>
     private const string ExitMarkerFileName = "exit_marker.txt";
 
+    /// <summary>暂停标记文件名（W0-M3: 暂停态崩溃恢复）。</summary>
+    private const string PauseMarkerFileName = "pause_marker.txt";
+
     /// <summary>崩溃恢复时间窗口（毫秒）：5 分钟。</summary>
     private static readonly TimeSpan RecoveryWindow = TimeSpan.FromMinutes(5);
 
@@ -24,6 +27,7 @@ public sealed class CrashRecoveryService : IDisposable
     private static readonly DateTime FallbackStart = DateTime.Now;
 
     private readonly string _markerFilePath;
+    private readonly string _pauseMarkerFilePath;
 
     /// <summary>
     /// 初始化崩溃恢复服务。
@@ -40,6 +44,7 @@ public sealed class CrashRecoveryService : IDisposable
                 "ActivityMonitor");
 
         _markerFilePath = Path.Combine(dir, ExitMarkerFileName);
+        _pauseMarkerFilePath = Path.Combine(dir, PauseMarkerFileName);
     }
 
     /// <summary>
@@ -123,6 +128,61 @@ public sealed class CrashRecoveryService : IDisposable
         catch (Exception ex)
         {
             Debug.WriteLine($"[CrashRecovery] ClearMarker error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 检查上次是否处于暂停状态（W0-M3: 暂停态崩溃恢复）。
+    /// 暂定时写入 pause_marker.txt，崩溃后重启读取以恢复暂停态。
+    /// </summary>
+    /// <returns>如果 pause_marker 存在返回 true 表示上次处于暂停状态。</returns>
+    public async Task<bool> WasPausedOnCrashAsync()
+    {
+        try
+        {
+            return await Task.Run(() => File.Exists(_pauseMarkerFilePath));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CrashRecovery] WasPausedOnCrash error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 标记暂停状态（由 ActivityEngine.PauseAsync 调用）。
+    /// </summary>
+    public async Task MarkPausedAsync()
+    {
+        try
+        {
+            await Task.Run(() => WritePauseMarker());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CrashRecovery] MarkPaused error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 清除暂停标记（由 ActivityEngine.ResumeAsync 调用）。
+    /// </summary>
+    public async Task ClearPauseMarkerAsync()
+    {
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (File.Exists(_pauseMarkerFilePath))
+                {
+                    File.Delete(_pauseMarkerFilePath);
+                    Debug.WriteLine("[CrashRecovery] Pause marker cleared");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CrashRecovery] ClearPauseMarker error: {ex.Message}");
         }
     }
 
@@ -257,6 +317,23 @@ public sealed class CrashRecoveryService : IDisposable
         catch (Exception ex)
         {
             Debug.WriteLine($"[CrashRecovery] WriteMarker error: {ex.Message}");
+        }
+    }
+
+    private void WritePauseMarker()
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(_pauseMarkerFilePath);
+            if (dir != null && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            File.WriteAllText(_pauseMarkerFilePath, DateTime.Now.ToString("O"));
+            Debug.WriteLine($"[CrashRecovery] Pause marker written");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CrashRecovery] WritePauseMarker error: {ex.Message}");
         }
     }
 
