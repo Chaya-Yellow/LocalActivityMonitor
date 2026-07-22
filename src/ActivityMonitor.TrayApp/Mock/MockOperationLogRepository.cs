@@ -52,6 +52,10 @@ public class MockOperationLogRepository : IOperationLogRepository
     // 模拟类别
     private static readonly string[] Categories = { "app", "web", "file", "app", "web", "app", "file" };
 
+    // ── 内部内存存储，支持 Update/Delete Mock ──
+    private List<OperationLog>? _cachedLogs;
+    private DateTime _cachedDate;
+
     public Task<OperationLog> InsertAsync(OperationLog log)
     {
         log.Id = Random.Shared.NextInt64(1000, 9999);
@@ -63,11 +67,38 @@ public class MockOperationLogRepository : IOperationLogRepository
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc />
+    public Task<bool> UpdateAsync(OperationLog log)
+    {
+        // 在缓存列表中查找并更新
+        var existing = _cachedLogs?.FirstOrDefault(l => l.Id == log.Id);
+        if (existing != null)
+        {
+            if (log.WindowTitle != null)
+                existing.WindowTitle = log.WindowTitle;
+            if (log.Detail != null)
+                existing.Detail = log.Detail;
+        }
+        return Task.FromResult(existing != null);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> DeleteAsync(long id)
+    {
+        var removed = _cachedLogs?.RemoveAll(l => l.Id == id) ?? 0;
+        return Task.FromResult(removed > 0);
+    }
+
     /// <summary>
     /// 生成指定日期的模拟操作日志（42 条），时间分布在 08:00 到 18:00 之间。
+    /// 内部缓存一份副本，供 UpdateAsync / DeleteAsync 修改。
     /// </summary>
     public Task<List<OperationLog>> GetOperationLogsAsync(DateTime date)
     {
+        // 使用缓存（相同日期返回已修改过的列表）
+        if (_cachedLogs != null && _cachedDate.Date == date.Date)
+            return Task.FromResult(new List<OperationLog>(_cachedLogs));
+
         var logs = new List<OperationLog>();
         var startOfDay = date.Date;
         var rng = new Random(_baseDate.DayOfYear + date.Day * 7); // 可重现的随机
@@ -106,6 +137,10 @@ public class MockOperationLogRepository : IOperationLogRepository
                 Detail = i % 5 == 0 ? $"详细说明 #{i + 1}" : null
             });
         }
+
+        // 缓存结果供后续 Update/Delete
+        _cachedLogs = new List<OperationLog>(logs);
+        _cachedDate = date.Date;
 
         return Task.FromResult(logs);
     }
