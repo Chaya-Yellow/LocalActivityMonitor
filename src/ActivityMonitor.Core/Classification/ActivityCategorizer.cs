@@ -231,7 +231,15 @@ public class ActivityCategorizer : IActivityCategorizer
         {
             var isPrivate = IncognitoMarkers.Any(m =>
                 (activity.WindowTitle ?? string.Empty).Contains(m, StringComparison.OrdinalIgnoreCase));
-            return (Models.Category.Web, InferWorkTag(activity));
+            var workTag = InferWorkTag(activity);
+
+            // 浏览器浏览默认算工作时间（用户可以在 Dashboard 中手动标记为非工作）
+            if (workTag == Models.WorkTag.Unknown)
+            {
+                workTag = Models.WorkTag.Work;
+            }
+
+            return (Models.Category.Web, workTag);
         }
 
         // 编辑器/IDE → file
