@@ -9,6 +9,12 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace ActivityMonitor.TrayApp.Dashboard;
 
+/// <summary>统计列表排序列。</summary>
+public enum StatsSortColumn { Name, Duration }
+
+/// <summary>排序方向。</summary>
+public enum StatsSortDirection { Ascending, Descending }
+
 /// <summary>
 /// Dashboard 主面板 ViewModel。
 /// 管理当日时间线、实时统计、监控状态切换和窗口导航。
@@ -48,6 +54,32 @@ public partial class DashboardViewModel : ObservableObject
         [Category.Idle] = "idle (空闲)",
         [Category.Sleep] = "sleep (睡眠)",
     };
+
+    // ──────────────── 排序状态 ────────────────
+
+    /// <summary>统计列表当前排序列。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NameSortGlyph))]
+    [NotifyPropertyChangedFor(nameof(DurationSortGlyph))]
+    private StatsSortColumn _sortColumn = StatsSortColumn.Duration;
+
+    /// <summary>统计列表当前排序方向。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NameSortGlyph))]
+    [NotifyPropertyChangedFor(nameof(DurationSortGlyph))]
+    private StatsSortDirection _sortDirection = StatsSortDirection.Descending;
+
+    /// <summary>名称列排序箭头标识（▲/▼/空）。</summary>
+    public string NameSortGlyph =>
+        SortColumn == StatsSortColumn.Name
+            ? SortDirection == StatsSortDirection.Ascending ? " ▲" : " ▼"
+            : "";
+
+    /// <summary>时长列排序箭头标识（▲/▼/空）。</summary>
+    public string DurationSortGlyph =>
+        SortColumn == StatsSortColumn.Duration
+            ? SortDirection == StatsSortDirection.Descending ? " ▲" : " ▼"
+            : "";
 
     // ──────────────── 可观察属性 ────────────────
 
@@ -314,6 +346,83 @@ public partial class DashboardViewModel : ObservableObject
         }
     }
 
+    // ──────────────── 排序 ────────────────
+
+    /// <summary>
+    /// 按名称排序（A-Z / Z-A 切换）。
+    /// </summary>
+    [RelayCommand]
+    private void SortByName()
+    {
+        if (SortColumn == StatsSortColumn.Name)
+        {
+            // 同列切换方向
+            SortDirection = SortDirection == StatsSortDirection.Ascending
+                ? StatsSortDirection.Descending
+                : StatsSortDirection.Ascending;
+        }
+        else
+        {
+            SortColumn = StatsSortColumn.Name;
+            SortDirection = StatsSortDirection.Ascending;
+        }
+        ApplySortToStats();
+    }
+
+    /// <summary>
+    /// 按时长排序（高→低 / 低→高 切换）。
+    /// </summary>
+    [RelayCommand]
+    private void SortByDuration()
+    {
+        if (SortColumn == StatsSortColumn.Duration)
+        {
+            SortDirection = SortDirection == StatsSortDirection.Descending
+                ? StatsSortDirection.Ascending
+                : StatsSortDirection.Descending;
+        }
+        else
+        {
+            SortColumn = StatsSortColumn.Duration;
+            SortDirection = StatsSortDirection.Descending;
+        }
+        ApplySortToStats();
+    }
+
+    /// <summary>
+    /// 将当前排序应用到四个统计集合。
+    /// </summary>
+    private void ApplySortToStats()
+    {
+        AppStats = SortCollection(AppStats);
+        ProjectStats = SortCollection(ProjectStats);
+        DomainStats = SortCollection(DomainStats);
+        CategoryStats = SortCollection(CategoryStats);
+    }
+
+    /// <summary>
+    /// 对单个统计集合按当前排序设置重新排序。
+    /// </summary>
+    private ObservableCollection<StatsItem> SortCollection(ObservableCollection<StatsItem> source)
+    {
+        var list = source.ToList();
+
+        if (SortColumn == StatsSortColumn.Name)
+        {
+            list.Sort(SortDirection == StatsSortDirection.Ascending
+                ? (a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal)
+                : (a, b) => string.Compare(b.Name, a.Name, StringComparison.Ordinal));
+        }
+        else
+        {
+            list.Sort(SortDirection == StatsSortDirection.Descending
+                ? (a, b) => b.DurationMs.CompareTo(a.DurationMs)
+                : (a, b) => a.DurationMs.CompareTo(b.DurationMs));
+        }
+
+        return new ObservableCollection<StatsItem>(list);
+    }
+
     /// <summary>
     /// 编辑选中的活动事件（弹出编辑对话框，当前为占位实现）。
     /// </summary>
@@ -500,6 +609,9 @@ public partial class DashboardViewModel : ObservableObject
                 })
                 .OrderByDescending(s => s.DurationMs)
                 .ToList());
+
+        // 应用当前排序设置
+        ApplySortToStats();
     }
 
     /// <summary>

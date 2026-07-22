@@ -68,6 +68,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -88,16 +89,58 @@
                 <TabItem Header="类别" />
             </TabControl>
 
+            <!-- 列标题（可点击排序） -->
+            <Grid Grid.Row="2" Margin="0,6,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Padding="2,2"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Command="{Binding DataContext.SortByNameCommand,
+                                  RelativeSource={RelativeSource AncestorType=Window}}">
+                    <TextBlock FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}">
+                        <Run Text="名称" />
+                        <Run Text="{Binding DataContext.NameSortGlyph,
+                                   RelativeSource={RelativeSource AncestorType=Window},
+                                   Mode=OneWay}" />
+                    </TextBlock>
+                </Button>
+
+                <Button Grid.Column="1"
+                        Padding="2,2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Command="{Binding DataContext.SortByDurationCommand,
+                                  RelativeSource={RelativeSource AncestorType=Window}}">
+                    <TextBlock FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}">
+                        <Run Text="时长" />
+                        <Run Text="{Binding DataContext.DurationSortGlyph,
+                                   RelativeSource={RelativeSource AncestorType=Window},
+                                   Mode=OneWay}" />
+                    </TextBlock>
+                </Button>
+            </Grid>
+
             <!-- 统计列表（分页） -->
-            <ScrollViewer Grid.Row="2"
+            <ScrollViewer Grid.Row="3"
                           VerticalScrollBarVisibility="Auto"
-                          Margin="0,6,0,0">
+                          Margin="0,2,0,0">
                 <ItemsControl ItemsSource="{Binding ElementName=Root, Path=PageItems}"
                               ItemTemplate="{StaticResource StatsItemTemplate}" />
             </ScrollViewer>
 
             <!-- 分页导航栏 -->
-            <Border Grid.Row="3"
+            <Border Grid.Row="4"
                     Margin="0,6,0,0"
                     Padding="6,4"
                     CornerRadius="4"
