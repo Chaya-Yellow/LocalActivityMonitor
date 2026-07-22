@@ -24,7 +24,7 @@
 
 | 编号 | 测试用例 | 现象（实际 vs 预期） | 责任人 | 涉及文件:行号 | 状态 | 备注 |
 |:----:|---------|-------------------|:------:|:-------------|:----:|:----:|
-| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🔴 待修复 | 复测编译失败：DailyReportBuilderTests.cs 未同步新签名 Build(DateTime,events,...) |
+| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | ✅ 已关闭 | 复测通过，183 tests passed |
 
 ---
 
@@ -52,7 +52,7 @@
 
 | 编号 | 摘要 | 状态 |
 |:----:|------|:----:|
-| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🔴 待修复 |
+| BUG-001 | 空事件时日报日期显示为 DateTime.Today | ✅ 已关闭 |
 
 ### 技术架构师（数据层/接口/Win32）
 
@@ -88,5 +88,7 @@
   DailyReportBuilderTests.cs(205,29): error CS7036: 未提供与"DailyReportBuilder.Build(DateTime, IReadOnlyList<ActivityEvent>, DailySummary?)"的所需参数"events"对应的参数
   ```
   **结论：** 源代码修复正确，但测试文件未同步更新，无法编译验证。需数据报表工程师更新测试后重新复测。
+- **最终修复（2026-07-22）：** 数据报表工程师在 `fix/report-bug-001` 提交 `113e4a2`，同步更新所有测试调用签名。cherry-pick 到 main 后 `dotnet test` 全部 183 个通过 ✅
+- **关闭日期：** 2026-07-22
 
 ---
