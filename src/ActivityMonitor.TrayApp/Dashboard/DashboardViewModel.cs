@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Windows.Threading;
 using ActivityMonitor.Core.Interfaces;
@@ -647,10 +648,20 @@ public partial class DashboardViewModel : ObservableObject
             .Where(e => !string.IsNullOrEmpty(e.ProcessName))
             .GroupBy(e => e.ProcessName!), totalMs, "其他");
 
-        // ── 按项目统计 ──
-        _allProjectStats = BuildStats(active
+        // ── 按项目统计（含项目路径） ──
+        var projectGroups = active
             .Where(e => !string.IsNullOrEmpty(e.Project))
-            .GroupBy(e => e.Project!), totalMs);
+            .GroupBy(e => e.Project!).ToList();
+
+        _allProjectStats = BuildStats(projectGroups, totalMs);
+
+        // 为每个项目项填充 Detail（项目目录路径）
+        foreach (var item in _allProjectStats)
+        {
+            var group = projectGroups.FirstOrDefault(g => g.Key == item.Name);
+            if (group != null)
+                item.Detail = ExtractProjectPath(group);
+        }
 
         // ── 按域名统计 ──
         _allDomainStats = BuildStats(active
@@ -749,5 +760,151 @@ public partial class DashboardViewModel : ObservableObject
     {
         return new ObservableCollection<StatsItem>(
             source.Where(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    // ──────────────── 项目重命名 ────────────────
+
+    /// <summary>
+    /// 从一组事件中提取可读的项目目录路径。
+    /// </summary>
+    private static string? ExtractProjectPath(IGrouping<string, ActivityEvent> group)
+    {
+        // 优先从 Detail（通常是文件路径）中提取目录
+        foreach (var evt in group)
+        {
+            if (!string.IsNullOrEmpty(evt.Detail))
+            {
+                var dir = Path.GetDirectoryName(evt.Detail);
+                if (!string.IsNullOrEmpty(dir))
+                    return dir;
+            }
+        }
+
+        // 回退到进程路径所在目录
+        foreach (var evt in group)
+        {
+            if (!string.IsNullOrEmpty(evt.ProcessPath))
+            {
+                var dir = Path.GetDirectoryName(evt.ProcessPath);
+                if (!string.IsNullOrEmpty(dir))
+                    return dir;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 重命名项目：弹出输入对话框，确认后全局重命名并刷新统计。
+    /// </summary>
+    [RelayCommand]
+    private async Task RenameProjectAsync(StatsItem? item)
+    {
+        if (item == null || string.IsNullOrEmpty(item.Name)) return;
+
+        var newName = ShowInputDialog(
+            "重命名项目",
+            $"将 \"{item.Name}\" 重命名为：",
+            item.Name);
+
+        if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == item.Name)
+            return;
+
+        newName = newName.Trim();
+
+        try
+        {
+            // 全局重命名：更新当前所有事件的项目名
+            foreach (var evt in TodayEvents.Where(e => e.Project == item.Name))
+            {
+                evt.Project = newName;
+                await _repository.UpdateAsync(evt);
+            }
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[DashboardVM] 项目 \"{item.Name}\" → \"{newName}\" 全局重命名完成");
+
+            // 刷新统计
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DashboardVM] 重命名失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 简单输入对话框（WPF Window 内联创建）。
+    /// </summary>
+    private static string? ShowInputDialog(string title, string prompt, string defaultValue)
+    {
+        var textBox = new System.Windows.Controls.TextBox
+        {
+            Text = defaultValue,
+            Margin = new System.Windows.Thickness(4),
+        };
+
+        var okButton = new System.Windows.Controls.Button
+        {
+            Content = "确定",
+            Width = 80,
+            IsDefault = true,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0),
+        };
+
+        var cancelButton = new System.Windows.Controls.Button
+        {
+            Content = "取消",
+            Width = 80,
+            IsCancel = true,
+        };
+
+        string? result = null;
+        okButton.Click += (_, _) =>
+        {
+            result = textBox.Text;
+            // 关闭所属窗口
+            var w = System.Windows.Window.GetWindow(textBox);
+            if (w != null)
+                w.DialogResult = true;
+        };
+
+        var buttonPanel = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new System.Windows.Thickness(0, 8, 0, 0),
+        };
+        buttonPanel.Children.Add(okButton);
+        buttonPanel.Children.Add(cancelButton);
+
+        var stackPanel = new System.Windows.Controls.StackPanel
+        {
+            Margin = new System.Windows.Thickness(12),
+        };
+        stackPanel.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = prompt,
+            Margin = new System.Windows.Thickness(0, 0, 0, 8),
+        });
+        stackPanel.Children.Add(textBox);
+        stackPanel.Children.Add(buttonPanel);
+
+        var window = new System.Windows.Window
+        {
+            Title = title,
+            Width = 380,
+            SizeToContent = System.Windows.SizeToContent.Height,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+            Owner = System.Windows.Application.Current.Windows
+                .OfType<DashboardWindow>().FirstOrDefault(),
+            WindowStyle = System.Windows.WindowStyle.ToolWindow,
+            ResizeMode = System.Windows.ResizeMode.NoResize,
+            Content = stackPanel,
+            ShowInTaskbar = false,
+        };
+
+        window.ShowDialog();
+        return result;
     }
 }
