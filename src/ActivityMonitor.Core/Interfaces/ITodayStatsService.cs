@@ -56,6 +56,9 @@ public class StatsItem
 
     /// <summary>占比百分比（0-100）。</summary>
     public double Percentage { get; set; }
+
+    /// <summary>详细信息（如窗口标题、文件路径等），用于界面展示。</summary>
+    public string? Detail { get; set; }
 }
 
 /// <summary>
