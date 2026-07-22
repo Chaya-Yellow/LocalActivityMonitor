@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using ActivityEvent = ActivityMonitor.Core.Models.ActivityEvent;
 using ActivityMonitor.Core.Models;
 using ActivityMonitor.Data.Database;

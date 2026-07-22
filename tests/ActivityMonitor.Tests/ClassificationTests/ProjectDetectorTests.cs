@@ -1,3 +1,4 @@
+using System.IO;
 using ActivityMonitor.Core.Classification;
 using FluentAssertions;
 using Xunit;

@@ -1,3 +1,4 @@
+using System.IO;
 using ActivityMonitor.Core.Tracking;
 using FluentAssertions;
 using Xunit;

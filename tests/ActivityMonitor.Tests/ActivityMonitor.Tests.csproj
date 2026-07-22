@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +20,7 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
     <PackageReference Include="NSubstitute" Version="5.1.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +35,28 @@
     <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\MarkdownExporter.cs" Link="Linked\MarkdownExporter.cs" />
     <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\WeeklyReportBuilder.cs" Link="Linked\WeeklyReportBuilder.cs" />
     <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\WeeklyMarkdownExporter.cs" Link="Linked\WeeklyMarkdownExporter.cs" />
+  </ItemGroup>
+
+  <!-- Link frontend components from TrayApp for regression testing -->
+  <ItemGroup>
+    <!-- W1-M2: Time segment UI -->
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Dashboard\Controls\DonutChartBuilder.cs" Link="Linked\DonutChartBuilder.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Dashboard\Controls\PercentageToWidthConverter.cs" Link="Linked\PercentageToWidthConverter.cs" />
+    <!-- W1-M3: Operation log preview -->
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\ReportEditor\OperationLogPreviewViewModel.cs" Link="Linked\OperationLogPreviewViewModel.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockOperationLogRepository.cs" Link="Linked\MockOperationLogRepository.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockReportExporter.cs" Link="Linked\MockReportExporter.cs" />
+    <!-- W1-M6: History view -->
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\History\HistoryViewModel.cs" Link="Linked\HistoryViewModel.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\History\Controls\BarChartItem.cs" Link="Linked\BarChartItem.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\History\Controls\SoftwareTableItem.cs" Link="Linked\SoftwareTableItem.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\History\Controls\BarWidthMultiConverter.cs" Link="Linked\BarWidthMultiConverter.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\History\Controls\NameMatchConverter.cs" Link="Linked\NameMatchConverter.cs" />
+    <!-- Mock services needed by ViewModels -->
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockActivityRepository.cs" Link="Linked\MockActivityRepository.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockTodayStatsService.cs" Link="Linked\MockTodayStatsService.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockDailyStatsService.cs" Link="Linked\MockDailyStatsService.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Mock\MockWeeklyReportExporter.cs" Link="Linked\MockWeeklyReportExporter.cs" />
   </ItemGroup>
 
 </Project>
