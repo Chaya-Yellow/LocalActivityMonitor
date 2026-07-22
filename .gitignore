@@ -18,6 +18,7 @@ obj/
 x64/
 x86/
 [Ww][Ii][Nn]32/
+!src/ActivityMonitor.Core/Win32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
