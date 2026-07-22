@@ -4,6 +4,10 @@
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- 全局转换器 -->
+            <converters:EnumEqConverter x:Key="EnumEqConverter"
+                xmlns:converters="clr-namespace:ActivityMonitor.TrayApp.Converters" />
+
             <!-- 全局默认样式与颜色 -->
             <SolidColorBrush x:Key="PrimaryBrush" Color="#0078D4" />
             <SolidColorBrush x:Key="SuccessBrush" Color="#107C10" />
