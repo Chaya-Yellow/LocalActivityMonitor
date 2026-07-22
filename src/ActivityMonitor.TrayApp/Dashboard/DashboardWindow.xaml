@@ -157,7 +157,8 @@
                                       EditEventCommand="{Binding EditEventCommand}"
                                       DeleteEventCommand="{Binding DeleteEventCommand}"
                                       InsertOfflineCommand="{Binding InsertOfflineActivityCommand}"
-                                      ViewDetailsCommand="{Binding ViewDetailsCommand}" />
+                                      ViewDetailsCommand="{Binding ViewDetailsCommand}"
+                                      MarkAsFalsePositiveCommand="{Binding MarkAsFalsePositiveCommand}" />
 
             <!-- 右侧：实时统计 -->
             <controls:RealTimeStatsControl Grid.Column="2"

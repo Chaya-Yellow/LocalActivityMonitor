@@ -41,6 +41,10 @@
                 <MenuItem Header="🗑 删除"
                           Command="{Binding ElementName=Root, Path=DeleteCommand}"
                           CommandParameter="{Binding ElementName=Root, Path=EventData}" />
+                <Separator />
+                <MenuItem Header="🚫 标记为误报"
+                          Command="{Binding ElementName=Root, Path=MarkAsFalsePositiveCommand}"
+                          CommandParameter="{Binding ElementName=Root, Path=EventData}" />
             </ContextMenu>
         </Border.ContextMenu>
         <Grid>

@@ -34,3 +34,27 @@ public class PercentageToWidthConverter : IMultiValueConverter
         throw new NotSupportedException();
     }
 }
+
+/// <summary>
+/// 非 null → Visible, null → Collapsed 转换器。
+/// 用于控制项目路径和重命名按钮的可见性。
+/// </summary>
+public class NullToVisibilityConverter : IValueConverter
+{
+    /// <summary>
+    /// 若 value 非 null 则返回 Visible，否则 Collapsed。
+    /// parameter = "invert" 时反转行为。
+    /// </summary>
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var isVisible = value != null && (value is not string s || !string.IsNullOrEmpty(s));
+        if (parameter is string p && p.Equals("invert", StringComparison.OrdinalIgnoreCase))
+            isVisible = !isVisible;
+        return isVisible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}

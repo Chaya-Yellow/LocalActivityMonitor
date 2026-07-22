@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Windows.Threading;
 using ActivityMonitor.Core.Interfaces;
 using ActivityMonitor.Core.Models;
@@ -7,6 +9,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace ActivityMonitor.TrayApp.Dashboard;
+
+/// <summary>统计列表排序列。</summary>
+public enum StatsSortColumn { Name, Duration }
+
+/// <summary>排序方向。</summary>
+public enum StatsSortDirection { Ascending, Descending }
 
 /// <summary>
 /// Dashboard 主面板 ViewModel。
@@ -34,6 +42,50 @@ public partial class DashboardViewModel : ObservableObject
     private const int ReducedIntervalMs = 7_000;     // 降频 7 秒
     private const int ConsecutiveFastThreshold = 30; // 连续 30 次快速刷新后恢复 1 秒
     private int _consecutiveFastRefreshes;
+
+    // ──────────────── 自动刷新暂停 ────────────────
+    private bool _isAutoRefreshPaused;
+    private DateTime _lastInteractionTime = DateTime.MinValue;
+    private const int AutoRefreshResumeDelayMs = 3_000;
+
+    // ──────────────── 误报跟踪 ────────────────
+    private readonly HashSet<long> _falsePositiveIds = new();
+
+    /// <summary>类别代码 → 显示名称映射。</summary>
+    private static readonly Dictionary<string, string> CategoryDisplayNames = new()
+    {
+        [Category.Web] = "web (网页)",
+        [Category.File] = "file (编辑)",
+        [Category.App] = "app (应用)",
+        [Category.Idle] = "idle (空闲)",
+        [Category.Sleep] = "sleep (睡眠)",
+    };
+
+    // ──────────────── 排序状态 ────────────────
+
+    /// <summary>统计列表当前排序列。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NameSortGlyph))]
+    [NotifyPropertyChangedFor(nameof(DurationSortGlyph))]
+    private StatsSortColumn _sortColumn = StatsSortColumn.Duration;
+
+    /// <summary>统计列表当前排序方向。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NameSortGlyph))]
+    [NotifyPropertyChangedFor(nameof(DurationSortGlyph))]
+    private StatsSortDirection _sortDirection = StatsSortDirection.Descending;
+
+    /// <summary>名称列排序箭头标识（▲/▼/空）。</summary>
+    public string NameSortGlyph =>
+        SortColumn == StatsSortColumn.Name
+            ? SortDirection == StatsSortDirection.Ascending ? " ▲" : " ▼"
+            : "";
+
+    /// <summary>时长列排序箭头标识（▲/▼/空）。</summary>
+    public string DurationSortGlyph =>
+        SortColumn == StatsSortColumn.Duration
+            ? SortDirection == StatsSortDirection.Descending ? " ▲" : " ▼"
+            : "";
 
     // ──────────────── 可观察属性 ────────────────
 
@@ -68,6 +120,12 @@ public partial class DashboardViewModel : ObservableObject
     /// <summary>按活动类别聚合的统计数据。</summary>
     [ObservableProperty]
     private ObservableCollection<StatsItem> _categoryStats = new();
+
+    // ──────────────── 全量统计缓存（用于搜索过滤） ────────────────
+    private ObservableCollection<StatsItem> _allAppStats = new();
+    private ObservableCollection<StatsItem> _allProjectStats = new();
+    private ObservableCollection<StatsItem> _allDomainStats = new();
+    private ObservableCollection<StatsItem> _allCategoryStats = new();
 
     /// <summary>当天的活动事件列表（时间线数据源）。</summary>
     [ObservableProperty]
@@ -112,6 +170,10 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedStatsTab;
 
+    /// <summary>统计搜索关键词（实时过滤，不区分大小写）。</summary>
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
     public DashboardViewModel()
     {
         // 使用 Mock 实现先行开发，后期替换为 DI 注入
@@ -128,7 +190,13 @@ public partial class DashboardViewModel : ObservableObject
         {
             Interval = TimeSpan.FromMilliseconds(NormalIntervalMs),
         };
-        _refreshTimer.Tick += async (_, _) => await RefreshDataAsync();
+        _refreshTimer.Tick += async (_, _) =>
+        {
+            // 用户停止交互超过 3s 后自动恢复刷新
+            TryResumeAutoRefresh();
+            if (!_isAutoRefreshPaused)
+                await RefreshDataAsync();
+        };
 
         // 首次加载数据
         _ = RefreshDataAsync();
@@ -196,6 +264,15 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 搜索文本变化时实时过滤统计列表。
+    /// </summary>
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplySearchFilter();
+        ApplySortToStats();
+    }
+
+    /// <summary>
     /// 主数据刷新方法：重新加载当日概览、时间线和所有聚合统计。
     /// </summary>
     [RelayCommand]
@@ -209,20 +286,19 @@ public partial class DashboardViewModel : ObservableObject
             // 并行加载概览和时间线
             var overviewTask = _statsService.GetOverviewAsync();
             var eventsTask = _repository.GetTodayEventsAsync();
-            var appTask = _statsService.GetByAppAsync();
-            var projectTask = _statsService.GetByProjectAsync();
-            var domainTask = _statsService.GetByDomainAsync();
-            var categoryTask = _statsService.GetByCategoryAsync();
 
-            await Task.WhenAll(overviewTask, eventsTask, appTask, projectTask, domainTask, categoryTask);
+            await Task.WhenAll(overviewTask, eventsTask);
 
-            // 更新 UI（DispatcherTimer 已在 UI 线程上运行）
+            // 过滤误报记录
+            var allEvents = eventsTask.Result;
+            var filteredEvents = allEvents.Where(e => !_falsePositiveIds.Contains(e.Id)).ToList();
+
+            // 更新时间线（过滤误报后）
+            TodayEvents = new ObservableCollection<ActivityEvent>(filteredEvents);
+
+            // 从过滤后的事件重建统计和概览
             TodayOverview = overviewTask.Result;
-            TodayEvents = new ObservableCollection<ActivityEvent>(eventsTask.Result);
-            AppStats = new ObservableCollection<StatsItem>(appTask.Result);
-            ProjectStats = new ObservableCollection<StatsItem>(projectTask.Result);
-            DomainStats = new ObservableCollection<StatsItem>(domainTask.Result);
-            CategoryStats = new ObservableCollection<StatsItem>(categoryTask.Result);
+            RebuildFromEvents(filteredEvents);
         }
         catch (Exception ex)
         {
@@ -266,6 +342,7 @@ public partial class DashboardViewModel : ObservableObject
         try
         {
             await _repository.DeleteAsync(evt.Id);
+            _falsePositiveIds.Remove(evt.Id);
             TodayEvents.Remove(evt);
             // 刷新统计
             await RefreshDataAsync();
@@ -274,6 +351,107 @@ public partial class DashboardViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"[DashboardVM] 删除失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 将选中的活动事件标记为误报，误报记录将在实时统计中排除显示。
+    /// </summary>
+    [RelayCommand]
+    private async Task MarkAsFalsePositiveAsync(ActivityEvent? evt)
+    {
+        if (evt == null || _falsePositiveIds.Contains(evt.Id)) return;
+
+        evt.IsFalsePositive = true;
+        _falsePositiveIds.Add(evt.Id);
+
+        try
+        {
+            await _repository.UpdateAsync(evt);
+            TodayEvents.Remove(evt);
+            // 从当前过滤后的事件集合重建统计
+            RebuildFromEvents(TodayEvents.ToList());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DashboardVM] 标记误报失败: {ex.Message}");
+        }
+    }
+
+    // ──────────────── 排序 ────────────────
+
+    /// <summary>
+    /// 按名称排序（A-Z / Z-A 切换）。
+    /// </summary>
+    [RelayCommand]
+    private void SortByName()
+    {
+        if (SortColumn == StatsSortColumn.Name)
+        {
+            // 同列切换方向
+            SortDirection = SortDirection == StatsSortDirection.Ascending
+                ? StatsSortDirection.Descending
+                : StatsSortDirection.Ascending;
+        }
+        else
+        {
+            SortColumn = StatsSortColumn.Name;
+            SortDirection = StatsSortDirection.Ascending;
+        }
+        ApplySortToStats();
+    }
+
+    /// <summary>
+    /// 按时长排序（高→低 / 低→高 切换）。
+    /// </summary>
+    [RelayCommand]
+    private void SortByDuration()
+    {
+        if (SortColumn == StatsSortColumn.Duration)
+        {
+            SortDirection = SortDirection == StatsSortDirection.Descending
+                ? StatsSortDirection.Ascending
+                : StatsSortDirection.Descending;
+        }
+        else
+        {
+            SortColumn = StatsSortColumn.Duration;
+            SortDirection = StatsSortDirection.Descending;
+        }
+        ApplySortToStats();
+    }
+
+    /// <summary>
+    /// 将当前排序应用到四个统计集合。
+    /// </summary>
+    private void ApplySortToStats()
+    {
+        AppStats = SortCollection(AppStats);
+        ProjectStats = SortCollection(ProjectStats);
+        DomainStats = SortCollection(DomainStats);
+        CategoryStats = SortCollection(CategoryStats);
+    }
+
+    /// <summary>
+    /// 对单个统计集合按当前排序设置重新排序。
+    /// </summary>
+    private ObservableCollection<StatsItem> SortCollection(ObservableCollection<StatsItem> source)
+    {
+        var list = source.ToList();
+
+        if (SortColumn == StatsSortColumn.Name)
+        {
+            list.Sort(SortDirection == StatsSortDirection.Ascending
+                ? (a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal)
+                : (a, b) => string.Compare(b.Name, a.Name, StringComparison.Ordinal));
+        }
+        else
+        {
+            list.Sort(SortDirection == StatsSortDirection.Descending
+                ? (a, b) => b.DurationMs.CompareTo(a.DurationMs)
+                : (a, b) => a.DurationMs.CompareTo(b.DurationMs));
+        }
+
+        return new ObservableCollection<StatsItem>(list);
     }
 
     /// <summary>
@@ -400,5 +578,333 @@ public partial class DashboardViewModel : ObservableObject
             _consecutiveFastRefreshes = 0;
             UpdateRefreshInterval();
         }
+    }
+
+    // ──────────────── 自动刷新暂停 ────────────────
+
+    /// <summary>
+    /// 通知 VM 用户开始交互（搜索/翻页），暂停 1s 自动刷新。
+    /// </summary>
+    public void NotifyInteractionStarted()
+    {
+        _isAutoRefreshPaused = true;
+        _lastInteractionTime = DateTime.Now;
+        System.Diagnostics.Debug.WriteLine("[DashboardVM] 用户交互，暂停自动刷新");
+    }
+
+    /// <summary>
+    /// 通知 VM 用户结束交互（失去焦点），记录时间供 3s 后恢复。
+    /// </summary>
+    public void NotifyInteractionEnded()
+    {
+        _lastInteractionTime = DateTime.Now;
+        System.Diagnostics.Debug.WriteLine("[DashboardVM] 用户结束交互，3s 后恢复自动刷新");
+    }
+
+    /// <summary>
+    /// 每次定时器 Tick 调用，检查是否已过 3s 恢复期。
+    /// </summary>
+    private void TryResumeAutoRefresh()
+    {
+        if (_isAutoRefreshPaused &&
+            (DateTime.Now - _lastInteractionTime).TotalMilliseconds >= AutoRefreshResumeDelayMs)
+        {
+            _isAutoRefreshPaused = false;
+            System.Diagnostics.Debug.WriteLine("[DashboardVM] 恢复自动刷新");
+        }
+    }
+
+    // ──────────────── 误报处理 ────────────────
+
+    /// <summary>
+    /// 从过滤后的事件集合重新计算概览和所有维度统计。
+    /// 误报记录不会出现在统计中。
+    /// </summary>
+    private void RebuildFromEvents(List<ActivityEvent> events)
+    {
+        // 排除空闲/睡眠后计算活跃统计
+        var active = events.Where(e => e.Category != Category.Idle
+                                        && e.Category != Category.Sleep).ToList();
+
+        var totalMs = active.Sum(e => e.DurationMs);
+
+        // ── 概览（TodayOverview） ──
+        TodayOverview = new TodayOverview
+        {
+            TotalActiveMs = totalMs,
+            TotalIdleMs = events.Where(e => e.Category == Category.Idle).Sum(e => e.DurationMs),
+            TotalSleepMs = events.Where(e => e.Category == Category.Sleep).Sum(e => e.DurationMs),
+            WorkMs = events.Where(e => e.WorkTag == WorkTag.Work).Sum(e => e.DurationMs),
+            NonWorkMs = events
+                .Where(e => e.WorkTag != WorkTag.Work
+                            && e.Category != Category.Idle
+                            && e.Category != Category.Sleep)
+                .Sum(e => e.DurationMs),
+            EventCount = active.Count,
+        };
+
+        // ── 按应用（进程名）统计 ──
+        _allAppStats = BuildStats(active
+            .Where(e => !string.IsNullOrEmpty(e.ProcessName))
+            .GroupBy(e => e.ProcessName!), totalMs, "其他");
+
+        // ── 按项目统计（含项目路径） ──
+        var projectGroups = active
+            .Where(e => !string.IsNullOrEmpty(e.Project))
+            .GroupBy(e => e.Project!).ToList();
+
+        _allProjectStats = BuildStats(projectGroups, totalMs);
+
+        // 为每个项目项填充 Detail（项目目录路径）
+        foreach (var item in _allProjectStats)
+        {
+            var group = projectGroups.FirstOrDefault(g => g.Key == item.Name);
+            if (group != null)
+                item.Detail = ExtractProjectPath(group);
+        }
+
+        // ── 按域名统计 ──
+        _allDomainStats = BuildStats(active
+            .Where(e => !string.IsNullOrEmpty(e.Domain))
+            .GroupBy(e => e.Domain!), totalMs);
+
+        // ── 按类别统计 ──
+        _allCategoryStats = new ObservableCollection<StatsItem>(
+            events
+                .GroupBy(e => e.Category)
+                .Select(g => new StatsItem
+                {
+                    Name = CategoryDisplayNames.TryGetValue(g.Key, out var display)
+                        ? display
+                        : g.Key,
+                    DurationMs = g.Sum(e => e.DurationMs),
+                    Percentage = totalMs > 0
+                        ? (double)g.Sum(e => e.DurationMs) / totalMs * 100
+                        : 0,
+                })
+                .OrderByDescending(s => s.DurationMs)
+                .ToList());
+
+        // 从全量缓存按搜索关键词过滤，然后排序
+        ApplySearchFilter();
+        ApplySortToStats();
+    }
+
+    /// <summary>
+    /// 从分组数据构建 StatsItem 列表，包含占比计算和"其他"兜底。
+    /// </summary>
+    private static ObservableCollection<StatsItem> BuildStats(
+        IEnumerable<IGrouping<string, ActivityEvent>> groups, long totalMs, string fallbackName = "")
+    {
+        var items = new List<StatsItem>();
+        var accounted = 0L;
+
+        foreach (var g in groups)
+        {
+            var ms = g.Sum(e => e.DurationMs);
+            accounted += ms;
+            items.Add(new StatsItem
+            {
+                Name = g.Key,
+                DurationMs = ms,
+                Percentage = totalMs > 0 ? (double)ms / totalMs * 100 : 0,
+            });
+        }
+
+        // 未归类的余量记为"其他"
+        var other = totalMs - accounted;
+        if (other > 0)
+        {
+            items.Add(new StatsItem
+            {
+                Name = string.IsNullOrEmpty(fallbackName) ? "其他" : fallbackName,
+                DurationMs = other,
+                Percentage = totalMs > 0 ? (double)other / totalMs * 100 : 0,
+            });
+        }
+
+        return new ObservableCollection<StatsItem>(
+            items.OrderByDescending(s => s.DurationMs));
+    }
+
+    // ──────────────── 搜索过滤 ────────────────
+
+    /// <summary>
+    /// 根据 <see cref="SearchText"/> 从全量缓存中过滤统计列表。
+    /// 不区分大小写，按 Name 字段匹配。
+    /// </summary>
+    private void ApplySearchFilter()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            AppStats = _allAppStats;
+            ProjectStats = _allProjectStats;
+            DomainStats = _allDomainStats;
+            CategoryStats = _allCategoryStats;
+        }
+        else
+        {
+            var filter = SearchText.Trim();
+            AppStats = FilterCollection(_allAppStats, filter);
+            ProjectStats = FilterCollection(_allProjectStats, filter);
+            DomainStats = FilterCollection(_allDomainStats, filter);
+            CategoryStats = FilterCollection(_allCategoryStats, filter);
+        }
+    }
+
+    /// <summary>
+    /// 对单个集合按名称文本过滤（不区分大小写）。
+    /// </summary>
+    private static ObservableCollection<StatsItem> FilterCollection(
+        ObservableCollection<StatsItem> source, string filter)
+    {
+        return new ObservableCollection<StatsItem>(
+            source.Where(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    // ──────────────── 项目重命名 ────────────────
+
+    /// <summary>
+    /// 从一组事件中提取可读的项目目录路径。
+    /// </summary>
+    private static string? ExtractProjectPath(IGrouping<string, ActivityEvent> group)
+    {
+        // 优先从 Detail（通常是文件路径）中提取目录
+        foreach (var evt in group)
+        {
+            if (!string.IsNullOrEmpty(evt.Detail))
+            {
+                var dir = Path.GetDirectoryName(evt.Detail);
+                if (!string.IsNullOrEmpty(dir))
+                    return dir;
+            }
+        }
+
+        // 回退到进程路径所在目录
+        foreach (var evt in group)
+        {
+            if (!string.IsNullOrEmpty(evt.ProcessPath))
+            {
+                var dir = Path.GetDirectoryName(evt.ProcessPath);
+                if (!string.IsNullOrEmpty(dir))
+                    return dir;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 重命名项目：弹出输入对话框，确认后全局重命名并刷新统计。
+    /// </summary>
+    [RelayCommand]
+    private async Task RenameProjectAsync(StatsItem? item)
+    {
+        if (item == null || string.IsNullOrEmpty(item.Name)) return;
+
+        var newName = ShowInputDialog(
+            "重命名项目",
+            $"将 \"{item.Name}\" 重命名为：",
+            item.Name);
+
+        if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == item.Name)
+            return;
+
+        newName = newName.Trim();
+
+        try
+        {
+            // 全局重命名：更新当前所有事件的项目名
+            foreach (var evt in TodayEvents.Where(e => e.Project == item.Name))
+            {
+                evt.Project = newName;
+                await _repository.UpdateAsync(evt);
+            }
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[DashboardVM] 项目 \"{item.Name}\" → \"{newName}\" 全局重命名完成");
+
+            // 刷新统计
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DashboardVM] 重命名失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 简单输入对话框（WPF Window 内联创建）。
+    /// </summary>
+    private static string? ShowInputDialog(string title, string prompt, string defaultValue)
+    {
+        var textBox = new System.Windows.Controls.TextBox
+        {
+            Text = defaultValue,
+            Margin = new System.Windows.Thickness(4),
+        };
+
+        var okButton = new System.Windows.Controls.Button
+        {
+            Content = "确定",
+            Width = 80,
+            IsDefault = true,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0),
+        };
+
+        var cancelButton = new System.Windows.Controls.Button
+        {
+            Content = "取消",
+            Width = 80,
+            IsCancel = true,
+        };
+
+        string? result = null;
+        okButton.Click += (_, _) =>
+        {
+            result = textBox.Text;
+            // 关闭所属窗口
+            var w = System.Windows.Window.GetWindow(textBox);
+            if (w != null)
+                w.DialogResult = true;
+        };
+
+        var buttonPanel = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new System.Windows.Thickness(0, 8, 0, 0),
+        };
+        buttonPanel.Children.Add(okButton);
+        buttonPanel.Children.Add(cancelButton);
+
+        var stackPanel = new System.Windows.Controls.StackPanel
+        {
+            Margin = new System.Windows.Thickness(12),
+        };
+        stackPanel.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = prompt,
+            Margin = new System.Windows.Thickness(0, 0, 0, 8),
+        });
+        stackPanel.Children.Add(textBox);
+        stackPanel.Children.Add(buttonPanel);
+
+        var window = new System.Windows.Window
+        {
+            Title = title,
+            Width = 380,
+            SizeToContent = System.Windows.SizeToContent.Height,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+            Owner = System.Windows.Application.Current.Windows
+                .OfType<DashboardWindow>().FirstOrDefault(),
+            WindowStyle = System.Windows.WindowStyle.ToolWindow,
+            ResizeMode = System.Windows.ResizeMode.NoResize,
+            Content = stackPanel,
+            ShowInTaskbar = false,
+        };
+
+        window.ShowDialog();
+        return result;
     }
 }
