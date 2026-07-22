@@ -460,6 +460,131 @@ public class WeeklyReportBuilderTests
         finally { TryDel(db); }
     }
 
+    // ════════════════════════════════════════════
+    //  BuildAsync – 项目分布周环比 (W1-M6)
+    // ════════════════════════════════════════════
+
+    [Fact]
+    public async Task BuildAsync_ProjectBreakdownWow_ComputesCorrectComparison()
+    {
+        var db = TempDb();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchema(ctx);
+            var dailyRepo = new DailySummaryRepository(ctx);
+            var weeklyRepo = new WeeklySummaryRepository(ctx);
+            var aggService = new WeeklyAggregationService(ctx, dailyRepo, weeklyRepo);
+            var builder = new WeeklyReportBuilder(weeklyRepo);
+
+            var thisWeekStart = new DateTime(2026, 7, 20);
+            var lastWeekStart = thisWeekStart.AddDays(-7);
+
+            var projectTemplate = new Dictionary<string, long> { ["ProjectA"] = 100 };
+
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, lastWeekStart,
+                new long[] { 7200000, 0, 0, 0, 0, 0, 0 },
+                projectBreakdownTemplate: projectTemplate);
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, thisWeekStart,
+                new long[] { 7200000, 7200000, 7200000, 0, 0, 0, 0 },
+                projectBreakdownTemplate: projectTemplate);
+
+            var report = await builder.BuildAsync(thisWeekStart);
+
+            report.ProjectBreakdown.Should().HaveCount(1);
+            var item = report.ProjectBreakdown[0];
+            item.Name.Should().Be("ProjectA");
+            item.TotalMs.Should().Be(21600000);                    // 3 days × 7200000
+            item.LastWeekMs.Should().Be(7200000);                  // 1 day × 7200000
+            item.ChangeMs.Should().Be(14400000);                   // 21600000 - 7200000
+            item.ChangePercent.Should().Be(200);                   // +200%
+        }
+        finally { TryDel(db); }
+    }
+
+    // ════════════════════════════════════════════
+    //  BuildAsync – 相同总量周环比 (0% change)
+    // ════════════════════════════════════════════
+
+    [Fact]
+    public async Task BuildAsync_IdenticalWeekOverWeek_ChangePercentIsZero()
+    {
+        var db = TempDb();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchema(ctx);
+            var dailyRepo = new DailySummaryRepository(ctx);
+            var weeklyRepo = new WeeklySummaryRepository(ctx);
+            var aggService = new WeeklyAggregationService(ctx, dailyRepo, weeklyRepo);
+            var builder = new WeeklyReportBuilder(weeklyRepo);
+
+            var thisWeekStart = new DateTime(2026, 7, 20);
+            var lastWeekStart = thisWeekStart.AddDays(-7);
+
+            var appTemplate = new Dictionary<string, long> { ["code.exe"] = 100 };
+
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, lastWeekStart,
+                new long[] { 10800000, 10800000, 0, 0, 0, 0, 0 }, appTemplate);
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, thisWeekStart,
+                new long[] { 10800000, 10800000, 0, 0, 0, 0, 0 }, appTemplate);
+
+            var report = await builder.BuildAsync(thisWeekStart);
+
+            var cmp = report.WeekComparison!;
+            cmp.ThisWeekTotalMs.Should().Be(21600000);
+            cmp.LastWeekTotalMs.Should().Be(21600000);
+            cmp.ChangeMs.Should().Be(0);
+            cmp.ChangePercent.Should().Be(0);
+
+            var codeItem = report.AppBreakdown.First(i => i.Name == "code.exe");
+            codeItem.ChangeMs.Should().Be(0);
+            codeItem.ChangePercent.Should().Be(0);
+        }
+        finally { TryDel(db); }
+    }
+
+    // ════════════════════════════════════════════
+    //  BuildAsync – 上周总量为零
+    // ════════════════════════════════════════════
+
+    [Fact]
+    public async Task BuildAsync_LastWeekTotalZero_ChangePercentIsNull()
+    {
+        var db = TempDb();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchema(ctx);
+            var dailyRepo = new DailySummaryRepository(ctx);
+            var weeklyRepo = new WeeklySummaryRepository(ctx);
+            var aggService = new WeeklyAggregationService(ctx, dailyRepo, weeklyRepo);
+            var builder = new WeeklyReportBuilder(weeklyRepo);
+
+            var thisWeekStart = new DateTime(2026, 7, 20);
+            var lastWeekStart = thisWeekStart.AddDays(-7);
+
+            var appTemplate = new Dictionary<string, long> { ["code.exe"] = 100 };
+
+            // Last week: daily summary exists but total active = 0
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, lastWeekStart,
+                new long[] { 0, 0, 0, 0, 0, 0, 0 }, appTemplate);
+            // This week: has activity
+            await SeedWeekAsync(dailyRepo, weeklyRepo, aggService, thisWeekStart,
+                new long[] { 10800000, 0, 0, 0, 0, 0, 0 }, appTemplate);
+
+            var report = await builder.BuildAsync(thisWeekStart);
+
+            var cmp = report.WeekComparison!;
+            cmp.ThisWeekTotalMs.Should().Be(10800000);
+            cmp.LastWeekTotalMs.Should().Be(0);
+            cmp.ChangeMs.Should().Be(10800000);
+            // When last week total is 0, ChangePercent = 0 (due to lastWeek.TotalActiveMs > 0 check)
+            cmp.ChangePercent.Should().Be(0);
+        }
+        finally { TryDel(db); }
+    }
+
     [Fact]
     public async Task ExportWeeklyToFileAsync_WritesFileWithContent()
     {

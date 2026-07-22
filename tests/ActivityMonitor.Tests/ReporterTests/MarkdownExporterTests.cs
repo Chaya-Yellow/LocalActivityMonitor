@@ -461,6 +461,104 @@ public class MarkdownExporterTests
         finally { TryDelete(mainFile); TryDeleteDir(dir); TryDelete(db); }
     }
 
+    // ────────────────────────────────────────────
+    //  FormatDuration edge cases (W1-M3)
+    // ────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(0, "0s")]
+    [InlineData(1000, "1s")]
+    [InlineData(30000, "30s")]
+    [InlineData(60000, "1m")]
+    [InlineData(600000, "10m")]
+    [InlineData(3600000, "1h 0m")]
+    [InlineData(3600001, "1h 0m")]
+    [InlineData(7200000, "2h 0m")]
+    [InlineData(9000000, "2h 30m")]
+    [InlineData(36600000, "10h 10m")]
+    public void FormatDuration_VariousInputs_ReturnsFormattedString(long ms, string expected)
+    {
+        var result = MarkdownExporter.FormatDuration(ms);
+        result.Should().Be(expected);
+    }
+
+    // ────────────────────────────────────────────
+    //  Companion file naming convention (W1-M3)
+    // ────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExportOperationLogsFileAsync_CompanionFileNaming_AppendsSuffix()
+    {
+        var db = TempDbPath();
+        var dir = Path.Combine(Path.GetTempPath(), $"md_naming_{Guid.NewGuid():N}");
+        var mainFile = Path.Combine(dir, "工作日报_2026-07-21.md");
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var logRepo = new OperationLogRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx),
+                operationLogRepo: logRepo);
+
+            var date = new DateTime(2026, 7, 21);
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+            await logRepo.InsertAsync(new OperationLog
+            {
+                Timestamp = date.AddHours(9),
+                ProcessName = "code.exe",
+                WindowTitle = "Program.cs",
+                Category = Category.App,
+            });
+
+            var companionPath = await exporter.ExportOperationLogsFileAsync(date, mainFile);
+
+            // Naming convention: main file name + "_操作日志.md"
+            companionPath.Should().Be(Path.Combine(dir, "工作日报_2026-07-21_操作日志.md"));
+            File.Exists(companionPath).Should().BeTrue();
+        }
+        finally { TryDelete(mainFile); TryDeleteDir(dir); TryDelete(db); }
+    }
+
+    [Fact]
+    public async Task ExportOperationLogsFileAsync_LogWithNullProcessName_DoesNotCrash()
+    {
+        var db = TempDbPath();
+        var dir = Path.Combine(Path.GetTempPath(), $"md_null_{Guid.NewGuid():N}");
+        var mainFile = Path.Combine(dir, "daily-report.md");
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var logRepo = new OperationLogRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx),
+                operationLogRepo: logRepo);
+
+            var date = new DateTime(2026, 7, 21);
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, null, WorkTag.Work,
+                3600000, date.AddHours(9)));
+            await logRepo.InsertAsync(new OperationLog
+            {
+                Timestamp = date.AddHours(9).AddMinutes(30),
+                ProcessName = null,
+                WindowTitle = "some window",
+                Category = null,
+            });
+
+            var companionPath = await exporter.ExportOperationLogsFileAsync(date, mainFile);
+            File.Exists(companionPath).Should().BeTrue();
+            var content = await File.ReadAllTextAsync(companionPath);
+            content.Should().Contain("1 条操作记录");
+        }
+        finally { TryDelete(mainFile); TryDeleteDir(dir); TryDelete(db); }
+    }
+
     private static void TryDelete(string p) { try { File.Delete(p); } catch { } }
     private static void TryDeleteDir(string p) { try { Directory.Delete(p, true); } catch { } }
 }
