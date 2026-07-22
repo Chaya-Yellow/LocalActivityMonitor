@@ -8,7 +8,7 @@ namespace ActivityMonitor.TrayApp.Dashboard.Controls;
 /// <summary>
 /// 实时统计面板控件。
 /// 通过 Tab 切换展示按应用/项目/网页/类别维度的时长分布和占比，
-/// 底部支持分页导航（每页 10 条）。
+/// 底部支持分页导航（每页 10 条），顶部支持搜索过滤。
 /// </summary>
 public partial class RealTimeStatsControl
 {
@@ -310,27 +310,55 @@ public partial class RealTimeStatsControl
     private void GoToPage(int page)
     {
         if (page >= 1 && page <= TotalPages && page != CurrentPage)
+        {
+            NotifyViewModelInteractionStarted();
             CurrentPage = page;
+        }
     }
 
     /// <summary>上一页。</summary>
     private void GoToPrevPage()
     {
         if (HasPrevPage)
+        {
+            NotifyViewModelInteractionStarted();
             CurrentPage--;
+        }
     }
 
     /// <summary>下一页。</summary>
     private void GoToNextPage()
     {
         if (HasNextPage)
+        {
+            NotifyViewModelInteractionStarted();
             CurrentPage++;
+        }
     }
 
-    // ──────────────── 事件处理（供 XAML Click 事件绑定） ────────────────
+    // ──────────────── 交互暂停通知 ────────────────
+
+    /// <summary>通知 ViewModel 用户开始交互（暂停自动刷新）。</summary>
+    private void NotifyViewModelInteractionStarted()
+    {
+        if (DataContext is DashboardViewModel vm)
+            vm.NotifyInteractionStarted();
+    }
+
+    /// <summary>通知 ViewModel 用户结束交互（准备 3s 后恢复刷新）。</summary>
+    private void NotifyViewModelInteractionEnded()
+    {
+        if (DataContext is DashboardViewModel vm)
+            vm.NotifyInteractionEnded();
+    }
+
+    // ──────────────── 事件处理（供 XAML 事件绑定） ────────────────
 
     private void OnPrevPageClick(object sender, RoutedEventArgs e) => GoToPrevPage();
     private void OnNextPageClick(object sender, RoutedEventArgs e) => GoToNextPage();
+
+    private void OnSearchGotFocus(object sender, RoutedEventArgs e) => NotifyViewModelInteractionStarted();
+    private void OnSearchLostFocus(object sender, RoutedEventArgs e) => NotifyViewModelInteractionEnded();
 }
 
 /// <summary>

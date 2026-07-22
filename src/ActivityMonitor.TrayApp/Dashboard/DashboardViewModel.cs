@@ -42,6 +42,11 @@ public partial class DashboardViewModel : ObservableObject
     private const int ConsecutiveFastThreshold = 30; // 连续 30 次快速刷新后恢复 1 秒
     private int _consecutiveFastRefreshes;
 
+    // ──────────────── 自动刷新暂停 ────────────────
+    private bool _isAutoRefreshPaused;
+    private DateTime _lastInteractionTime = DateTime.MinValue;
+    private const int AutoRefreshResumeDelayMs = 3_000;
+
     // ──────────────── 误报跟踪 ────────────────
     private readonly HashSet<long> _falsePositiveIds = new();
 
@@ -115,6 +120,12 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<StatsItem> _categoryStats = new();
 
+    // ──────────────── 全量统计缓存（用于搜索过滤） ────────────────
+    private ObservableCollection<StatsItem> _allAppStats = new();
+    private ObservableCollection<StatsItem> _allProjectStats = new();
+    private ObservableCollection<StatsItem> _allDomainStats = new();
+    private ObservableCollection<StatsItem> _allCategoryStats = new();
+
     /// <summary>当天的活动事件列表（时间线数据源）。</summary>
     [ObservableProperty]
     private ObservableCollection<ActivityEvent> _todayEvents = new();
@@ -158,6 +169,10 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedStatsTab;
 
+    /// <summary>统计搜索关键词（实时过滤，不区分大小写）。</summary>
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
     public DashboardViewModel()
     {
         // 使用 Mock 实现先行开发，后期替换为 DI 注入
@@ -174,7 +189,13 @@ public partial class DashboardViewModel : ObservableObject
         {
             Interval = TimeSpan.FromMilliseconds(NormalIntervalMs),
         };
-        _refreshTimer.Tick += async (_, _) => await RefreshDataAsync();
+        _refreshTimer.Tick += async (_, _) =>
+        {
+            // 用户停止交互超过 3s 后自动恢复刷新
+            TryResumeAutoRefresh();
+            if (!_isAutoRefreshPaused)
+                await RefreshDataAsync();
+        };
 
         // 首次加载数据
         _ = RefreshDataAsync();
@@ -239,6 +260,15 @@ public partial class DashboardViewModel : ObservableObject
             IdleHoursText = FormatDuration(value.TotalIdleMs);
             EventCountText = $"{value.EventCount} 条";
         }
+    }
+
+    /// <summary>
+    /// 搜索文本变化时实时过滤统计列表。
+    /// </summary>
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplySearchFilter();
+        ApplySortToStats();
     }
 
     /// <summary>
@@ -549,6 +579,40 @@ public partial class DashboardViewModel : ObservableObject
         }
     }
 
+    // ──────────────── 自动刷新暂停 ────────────────
+
+    /// <summary>
+    /// 通知 VM 用户开始交互（搜索/翻页），暂停 1s 自动刷新。
+    /// </summary>
+    public void NotifyInteractionStarted()
+    {
+        _isAutoRefreshPaused = true;
+        _lastInteractionTime = DateTime.Now;
+        System.Diagnostics.Debug.WriteLine("[DashboardVM] 用户交互，暂停自动刷新");
+    }
+
+    /// <summary>
+    /// 通知 VM 用户结束交互（失去焦点），记录时间供 3s 后恢复。
+    /// </summary>
+    public void NotifyInteractionEnded()
+    {
+        _lastInteractionTime = DateTime.Now;
+        System.Diagnostics.Debug.WriteLine("[DashboardVM] 用户结束交互，3s 后恢复自动刷新");
+    }
+
+    /// <summary>
+    /// 每次定时器 Tick 调用，检查是否已过 3s 恢复期。
+    /// </summary>
+    private void TryResumeAutoRefresh()
+    {
+        if (_isAutoRefreshPaused &&
+            (DateTime.Now - _lastInteractionTime).TotalMilliseconds >= AutoRefreshResumeDelayMs)
+        {
+            _isAutoRefreshPaused = false;
+            System.Diagnostics.Debug.WriteLine("[DashboardVM] 恢复自动刷新");
+        }
+    }
+
     // ──────────────── 误报处理 ────────────────
 
     /// <summary>
@@ -579,22 +643,22 @@ public partial class DashboardViewModel : ObservableObject
         };
 
         // ── 按应用（进程名）统计 ──
-        AppStats = BuildStats(active
+        _allAppStats = BuildStats(active
             .Where(e => !string.IsNullOrEmpty(e.ProcessName))
             .GroupBy(e => e.ProcessName!), totalMs, "其他");
 
         // ── 按项目统计 ──
-        ProjectStats = BuildStats(active
+        _allProjectStats = BuildStats(active
             .Where(e => !string.IsNullOrEmpty(e.Project))
             .GroupBy(e => e.Project!), totalMs);
 
         // ── 按域名统计 ──
-        DomainStats = BuildStats(active
+        _allDomainStats = BuildStats(active
             .Where(e => !string.IsNullOrEmpty(e.Domain))
             .GroupBy(e => e.Domain!), totalMs);
 
         // ── 按类别统计 ──
-        CategoryStats = new ObservableCollection<StatsItem>(
+        _allCategoryStats = new ObservableCollection<StatsItem>(
             events
                 .GroupBy(e => e.Category)
                 .Select(g => new StatsItem
@@ -610,7 +674,8 @@ public partial class DashboardViewModel : ObservableObject
                 .OrderByDescending(s => s.DurationMs)
                 .ToList());
 
-        // 应用当前排序设置
+        // 从全量缓存按搜索关键词过滤，然后排序
+        ApplySearchFilter();
         ApplySortToStats();
     }
 
@@ -649,5 +714,40 @@ public partial class DashboardViewModel : ObservableObject
 
         return new ObservableCollection<StatsItem>(
             items.OrderByDescending(s => s.DurationMs));
+    }
+
+    // ──────────────── 搜索过滤 ────────────────
+
+    /// <summary>
+    /// 根据 <see cref="SearchText"/> 从全量缓存中过滤统计列表。
+    /// 不区分大小写，按 Name 字段匹配。
+    /// </summary>
+    private void ApplySearchFilter()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            AppStats = _allAppStats;
+            ProjectStats = _allProjectStats;
+            DomainStats = _allDomainStats;
+            CategoryStats = _allCategoryStats;
+        }
+        else
+        {
+            var filter = SearchText.Trim();
+            AppStats = FilterCollection(_allAppStats, filter);
+            ProjectStats = FilterCollection(_allProjectStats, filter);
+            DomainStats = FilterCollection(_allDomainStats, filter);
+            CategoryStats = FilterCollection(_allCategoryStats, filter);
+        }
+    }
+
+    /// <summary>
+    /// 对单个集合按名称文本过滤（不区分大小写）。
+    /// </summary>
+    private static ObservableCollection<StatsItem> FilterCollection(
+        ObservableCollection<StatsItem> source, string filter)
+    {
+        return new ObservableCollection<StatsItem>(
+            source.Where(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)));
     }
 }

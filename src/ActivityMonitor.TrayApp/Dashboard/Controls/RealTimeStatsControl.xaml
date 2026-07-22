@@ -69,6 +69,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -89,8 +90,39 @@
                 <TabItem Header="类别" />
             </TabControl>
 
+            <!-- 搜索框 -->
+            <Border Grid.Row="2" Margin="0,4,0,2"
+                    Background="#F0F0F0"
+                    CornerRadius="4"
+                    Padding="6,2"
+                    BorderThickness="1"
+                    BorderBrush="#E0E0E0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="🔍"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0" />
+                    <TextBox Grid.Column="1"
+                             FontSize="12"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             VerticalAlignment="Center"
+                             Text="{Binding DataContext.SearchText,
+                                   RelativeSource={RelativeSource AncestorType=Window},
+                                   UpdateSourceTrigger=PropertyChanged}"
+                             GotFocus="OnSearchGotFocus"
+                             LostFocus="OnSearchLostFocus" />
+                </Grid>
+            </Border>
+
             <!-- 列标题（可点击排序） -->
-            <Grid Grid.Row="2" Margin="0,6,0,2">
+            <Grid Grid.Row="3" Margin="0,6,0,2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -132,7 +164,7 @@
             </Grid>
 
             <!-- 统计列表（分页） -->
-            <ScrollViewer Grid.Row="3"
+            <ScrollViewer Grid.Row="4"
                           VerticalScrollBarVisibility="Auto"
                           Margin="0,2,0,0">
                 <ItemsControl ItemsSource="{Binding ElementName=Root, Path=PageItems}"
@@ -140,7 +172,7 @@
             </ScrollViewer>
 
             <!-- 分页导航栏 -->
-            <Border Grid.Row="4"
+            <Border Grid.Row="5"
                     Margin="0,6,0,0"
                     Padding="6,4"
                     CornerRadius="4"
