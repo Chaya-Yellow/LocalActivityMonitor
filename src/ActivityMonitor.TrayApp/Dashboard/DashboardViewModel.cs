@@ -22,15 +22,36 @@ public partial class DashboardViewModel : ObservableObject
 
     // ──────────────── 定时刷新 ────────────────
     private readonly DispatcherTimer _refreshTimer;
+    private readonly DispatcherTimer _refreshTextTimer;
 
     /// <summary>星期几中文名称。</summary>
     private static readonly string[] WeekDays = { "周日", "周一", "周二", "周三", "周四", "周五", "周六" };
+
+    // ──────────────── 降频控制 ────────────────
+    private bool _isReducedFrequency;
+    private DateTime _lastRefreshTimestamp = DateTime.Now;
+    private const int NormalIntervalMs = 1_000;      // 正常 1 秒
+    private const int ReducedIntervalMs = 7_000;     // 降频 7 秒
+    private const int ConsecutiveFastThreshold = 30; // 连续 30 次快速刷新后恢复 1 秒
+    private int _consecutiveFastRefreshes;
 
     // ──────────────── 可观察属性 ────────────────
 
     /// <summary>今日概览数据（总时长/工作/空闲等）。</summary>
     [ObservableProperty]
     private TodayOverview? _todayOverview;
+
+    /// <summary>上次刷新时间的文本（如"刚刚"、"3秒前"）。</summary>
+    [ObservableProperty]
+    private string _lastRefreshText = "刚刚";
+
+    /// <summary>数据是否已更新但用户正在交互（W0-M2 交互降频）。</summary>
+    [ObservableProperty]
+    private bool _hasPendingUpdate;
+
+    /// <summary>监控引擎是否处于空闲/睡眠状态（用于降频）。</summary>
+    [ObservableProperty]
+    private bool _isIdleOrSleep;
 
     /// <summary>按应用程序聚合的统计数据。</summary>
     [ObservableProperty]
@@ -52,9 +73,12 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<ActivityEvent> _todayEvents = new();
 
-    /// <summary>监控引擎运行状态。</summary>
+    /// <summary>监控引擎运行状态。变化时触发 <see cref="MonitoringStateChanged"/> 事件。</summary>
     [ObservableProperty]
     private bool _isMonitoring = true;
+
+    /// <summary>监控状态变化事件（供托盘图标联动）。</summary>
+    public event Action<bool>? MonitoringStateChanged;
 
     /// <summary>当前日期标签，如"2026年7月21日 周一"。</summary>
     [ObservableProperty]
@@ -99,10 +123,10 @@ public partial class DashboardViewModel : ObservableObject
         var now = DateTime.Now;
         CurrentDateLabel = $"{now:yyyy年M月d日} {WeekDays[(int)now.DayOfWeek]}";
 
-        // 初始化定时器：每 30 秒刷新一次数据
+        // 初始化定时器：每 1 秒刷新一次（W0-M2: 从 30 秒改为 1 秒）
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromSeconds(30),
+            Interval = TimeSpan.FromMilliseconds(NormalIntervalMs),
         };
         _refreshTimer.Tick += async (_, _) => await RefreshDataAsync();
 
@@ -111,6 +135,23 @@ public partial class DashboardViewModel : ObservableObject
 
         // 启动定时器
         _refreshTimer.Start();
+
+        // 初始化"最后刷新"文本定时器（每秒更新显示）
+        _refreshTextTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _refreshTextTimer.Tick += (_, _) =>
+        {
+            var elapsed = DateTime.Now - _lastRefreshTimestamp;
+            if (elapsed.TotalSeconds < 2)
+                LastRefreshText = "刚刚";
+            else if (elapsed.TotalSeconds < 60)
+                LastRefreshText = $"{(int)elapsed.TotalSeconds} 秒前";
+            else
+                LastRefreshText = $"{(int)elapsed.TotalMinutes} 分钟前";
+        };
+        _refreshTextTimer.Start();
     }
 
     /// <summary>
@@ -122,6 +163,22 @@ public partial class DashboardViewModel : ObservableObject
         return ts.TotalHours >= 1
             ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
             : $"{ts.Minutes}m";
+    }
+
+    /// <summary>
+    /// IsMonitoring 变化时触发事件（供托盘、App.xaml.cs 联动）。
+    /// </summary>
+    partial void OnIsMonitoringChanged(bool value)
+    {
+        MonitoringStateChanged?.Invoke(value);
+    }
+
+    /// <summary>
+    /// IsIdleOrSleep 变化时自动调整刷新频率。
+    /// </summary>
+    partial void OnIsIdleOrSleepChanged(bool value)
+    {
+        UpdateRefreshInterval();
     }
 
     /// <summary>
@@ -174,6 +231,18 @@ public partial class DashboardViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+
+            // 更新"最后刷新"文本
+            _lastRefreshTimestamp = DateTime.Now;
+            LastRefreshText = "刚刚";
+
+            // 降频恢复检测：如果连续 N 次刷新都很顺畅（无卡顿），逐步恢复频率
+            _consecutiveFastRefreshes++;
+            if (_isReducedFrequency && _consecutiveFastRefreshes >= ConsecutiveFastThreshold)
+            {
+                _isReducedFrequency = false;
+                UpdateRefreshInterval();
+            }
         }
     }
 
@@ -216,6 +285,20 @@ public partial class DashboardViewModel : ObservableObject
         if (evt == null) return;
         // TODO: 弹出编辑对话框，修改标题/描述/分类/工作标记
         System.Diagnostics.Debug.WriteLine($"[DashboardVM] 编辑事件: Id={evt.Id}, Title={evt.WindowTitle}");
+    }
+
+    /// <summary>
+    /// 查看活动事件详情（来源追溯 W0-M6）。
+    /// 弹窗显示原始窗口标题、完整进程路径等原始数据。
+    /// </summary>
+    [RelayCommand]
+    private void ViewDetails(ActivityEvent? evt)
+    {
+        if (evt == null) return;
+        var detailsWindow = new ViewDetails.ViewDetailsWindow(evt);
+        detailsWindow.Owner = System.Windows.Application.Current.Windows
+            .OfType<DashboardWindow>().FirstOrDefault();
+        detailsWindow.ShowDialog();
     }
 
     /// <summary>
@@ -283,5 +366,39 @@ public partial class DashboardViewModel : ObservableObject
     public void Cleanup()
     {
         _refreshTimer.Stop();
+        _refreshTextTimer.Stop();
+    }
+
+    /// <summary>
+    /// 根据空闲/睡眠状态和性能状况动态调整刷新频率。
+    /// 空闲/睡眠时降频至 7 秒，正常时 1 秒。
+    /// 若被手动降频（单次刷新 > 200ms），也使用 7 秒间隔。
+    /// </summary>
+    private void UpdateRefreshInterval()
+    {
+        var newInterval = IsIdleOrSleep || _isReducedFrequency
+            ? ReducedIntervalMs
+            : NormalIntervalMs;
+
+        if (Math.Abs(_refreshTimer.Interval.TotalMilliseconds - newInterval) > 10)
+        {
+            _refreshTimer.Interval = TimeSpan.FromMilliseconds(newInterval);
+            System.Diagnostics.Debug.WriteLine(
+                $"[DashboardVM] 刷新频率调整为 {newInterval}ms (空闲/睡眠={IsIdleOrSleep}, 降频={_isReducedFrequency})");
+        }
+    }
+
+    /// <summary>
+    /// 当单次刷新耗时超过 200ms 时调用此方法降低频率。
+    /// 由性能监控机制触发（W0-M2/N1.6）。
+    /// </summary>
+    public void ReduceRefreshRate()
+    {
+        if (!_isReducedFrequency)
+        {
+            _isReducedFrequency = true;
+            _consecutiveFastRefreshes = 0;
+            UpdateRefreshInterval();
+        }
     }
 }

@@ -73,4 +73,17 @@ public class ActivityEvent
 
     /// <summary>用户重新标记的类别。</summary>
     public string? UserCategory { get; set; }
+
+    /// <summary>
+    /// 原始窗口标题（捕获时的完整标题，不做任何截断/处理）。
+    /// 用于来源追溯（F2.6），与 <see cref="WindowTitle"/> 的区别在于
+    /// 该字段始终保留轮询时刻从 GetWindowText 获取的原始值。
+    /// </summary>
+    public string? RawWindowTitle { get; set; }
+
+    /// <summary>
+    /// 原始进程完整路径（捕获时的原始值，不做任何处理）。
+    /// 用于来源追溯（F2.6），确保进程路径始终可追溯。
+    /// </summary>
+    public string? RawProcessPath { get; set; }
 }

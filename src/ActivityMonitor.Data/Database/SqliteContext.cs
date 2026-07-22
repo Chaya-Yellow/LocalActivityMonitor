@@ -112,7 +112,9 @@ public class SqliteContext : IDisposable
                 is_crash_recovered  INTEGER DEFAULT 0,
                 edited_title        TEXT,
                 edited_desc         TEXT,
-                user_category       TEXT
+                user_category       TEXT,
+                raw_window_title    TEXT,
+                raw_process_path    TEXT
             );
 
             CREATE TABLE IF NOT EXISTS daily_summaries (

@@ -27,6 +27,7 @@ public class MockReportExporter : IReportExporter
 ## 📊 今日概览
 - 工作时长：5h 50m
 - 空闲/休息：1h 15m
+	- 监控暂停：15m（09:30-09:45）
 - 睡眠/锁屏：8h 00m
 - 工作占比：80% · 非工作占比：20%
 

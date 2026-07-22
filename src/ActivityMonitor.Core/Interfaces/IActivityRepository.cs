@@ -61,6 +61,38 @@ public interface IActivityRepository
     /// </summary>
     /// <param name="id">事件 ID。</param>
     Task<ActivityEvent?> GetByIdAsync(long id);
+
+    /// <summary>
+    /// 根据活动事件 ID 获取来源追溯信息（原始窗口标题 + 完整进程路径）。
+    /// 用于 F2.6 来源追溯功能。
+    /// </summary>
+    /// <param name="id">事件 ID。</param>
+    /// <returns>来源追溯信息；事件不存在时返回 null。</returns>
+    Task<EventSourceInfo?> GetSourceInfoAsync(long id);
+}
+
+/// <summary>
+/// 来源追溯信息 — 用于 F2.6：查看原始窗口标题和完整进程路径。
+/// </summary>
+public class EventSourceInfo
+{
+    /// <summary>活动事件 ID。</summary>
+    public long EventId { get; set; }
+
+    /// <summary>原始窗口标题（捕获时完整标题，不做截断/处理）。</summary>
+    public string? RawWindowTitle { get; set; }
+
+    /// <summary>原始进程完整路径。</summary>
+    public string? RawProcessPath { get; set; }
+
+    /// <summary>进程名（含 .exe 后缀）。</summary>
+    public string? ProcessName { get; set; }
+
+    /// <summary>活动开始时间。</summary>
+    public DateTime StartTime { get; set; }
+
+    /// <summary>活动结束时间。</summary>
+    public DateTime? EndTime { get; set; }
 }
 
 /// <summary>

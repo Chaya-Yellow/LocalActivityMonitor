@@ -34,6 +34,9 @@ public sealed class TrayIconManager : IDisposable
     /// <summary>请求暂停/恢复监控。</summary>
     public event Action? ToggleMonitoringRequested;
 
+    /// <summary>请求导出日报。</summary>
+    public event Action? ExportReportRequested;
+
     /// <summary>
     /// 初始化托盘图标、悬停提示和右键菜单。
     /// </summary>
@@ -66,6 +69,9 @@ public sealed class TrayIconManager : IDisposable
             ToggleMonitoringRequested?.Invoke();
         });
         _contextMenu.Items.Add(_toggleItem);
+
+        var exportItem = new ToolStripMenuItem("导出日报", null, (_, _) => ExportReportRequested?.Invoke());
+        _contextMenu.Items.Add(exportItem);
         _contextMenu.Items.Add(new ToolStripSeparator());
 
         var exitItem = new ToolStripMenuItem("退出", null, (_, _) => ExitRequested?.Invoke());

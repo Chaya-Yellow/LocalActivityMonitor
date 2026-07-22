@@ -254,6 +254,9 @@ public sealed class WindowTracker : IActivityTracker, IDisposable
             ProcessId = (int)processId,
             Category = Category.App,
             WorkTag = WorkTag.Unknown,
+            // 原始字段：保留 GetWindowText 和 MainModule.FileName 的原始值
+            RawWindowTitle = title,
+            RawProcessPath = processPath,
         };
 
         // 更新当前窗口快照

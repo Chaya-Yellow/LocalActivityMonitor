@@ -62,6 +62,9 @@ public class DailyReportBuilder
                 DurationMs = ev.DurationMs,
                 IsIdle = ev.Category == Category.Idle,
                 IsSleep = ev.Category == Category.Sleep,
+                // 来源追溯：保留原始窗口标题和进程路径
+                RawWindowTitle = ev.RawWindowTitle ?? ev.WindowTitle,
+                RawProcessPath = ev.RawProcessPath ?? ev.ProcessPath,
             };
 
             if (ev.StartTime.TimeOfDay < Noon)
@@ -217,6 +220,12 @@ public class TimelineEntry
 
     /// <summary>浏览器域名。</summary>
     public string? Domain { get; set; }
+
+    /// <summary>原始窗口标题（来源追溯 F2.6）。</summary>
+    public string? RawWindowTitle { get; set; }
+
+    /// <summary>原始进程完整路径（来源追溯 F2.6）。</summary>
+    public string? RawProcessPath { get; set; }
 
     /// <summary>活动类别。</summary>
     public string Category { get; set; } = "app";

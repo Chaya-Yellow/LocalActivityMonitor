@@ -9,8 +9,8 @@ namespace ActivityMonitor.TrayApp.History;
 
 /// <summary>
 /// 历史浏览 ViewModel。
-/// 支持按日期查看历史活动记录、浏览日/周/月聚合数据。
-/// 使用 Mock 数据先行开发。
+/// 支持按日期查看历史活动记录、日历选择、多日期范围统计。
+/// 近 3 天显示完整时间线，3 天以前显示统计概览。
 /// </summary>
 public partial class HistoryViewModel : ObservableObject
 {
@@ -22,6 +22,14 @@ public partial class HistoryViewModel : ObservableObject
     /// <summary>当前选中的日期。</summary>
     [ObservableProperty]
     private DateTime _selectedDate = DateTime.Today;
+
+    /// <summary>范围查询的起始日期（用于多日期选择）。</summary>
+    [ObservableProperty]
+    private DateTime _rangeStart = DateTime.Today;
+
+    /// <summary>范围查询的结束日期（用于多日期选择）。</summary>
+    [ObservableProperty]
+    private DateTime _rangeEnd = DateTime.Today;
 
     /// <summary>选中日期的事件列表。</summary>
     [ObservableProperty]
@@ -47,6 +55,34 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoading;
 
+    /// <summary>是否显示时间线视图（近 3 天）还是统计概览视图。</summary>
+    [ObservableProperty]
+    private bool _isTimelineView = true;
+
+    /// <summary>是否有数据可显示。</summary>
+    [ObservableProperty]
+    private bool _hasData = true;
+
+    /// <summary>空数据提示文本。</summary>
+    [ObservableProperty]
+    private string _emptyMessage = string.Empty;
+
+    /// <summary>是否启用范围选择模式。</summary>
+    [ObservableProperty]
+    private bool _isRangeMode;
+
+    /// <summary>范围统计的总时长文本。</summary>
+    [ObservableProperty]
+    private string _rangeTotalText = string.Empty;
+
+    /// <summary>范围统计的天数。</summary>
+    [ObservableProperty]
+    private string _rangeDaysText = string.Empty;
+
+    /// <summary>范围统计的日均时长文本。</summary>
+    [ObservableProperty]
+    private string _rangeDailyAvgText = string.Empty;
+
     public HistoryViewModel()
     {
         _repository = new MockActivityRepository();
@@ -66,6 +102,15 @@ public partial class HistoryViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 判断日期是否为近 3 天（含今天）。
+    /// </summary>
+    private static bool IsRecent3Days(DateTime date)
+    {
+        var diff = (DateTime.Today - date.Date).Days;
+        return diff >= 0 && diff <= 2;
+    }
+
+    /// <summary>
     /// 加载选中日期的数据。
     /// </summary>
     [RelayCommand]
@@ -78,33 +123,174 @@ public partial class HistoryViewModel : ObservableObject
         {
             UpdateDateLabel();
 
+            // 判断视图模式：近 3 天显示时间线，否则统计概览
+            IsTimelineView = IsRecent3Days(SelectedDate);
+
             // 加载事件和统计
-            var eventsTask = _repository.GetByDateAsync(SelectedDate);
-            var statsTask = _statsService.GetByAppAsync(); // Mock 始终返回今天数据
+            var events = await _repository.GetByDateAsync(SelectedDate);
 
-            await Task.WhenAll(eventsTask, statsTask);
+            if (events.Count == 0)
+            {
+                HasData = false;
+                EmptyMessage = IsTimelineView
+                    ? "📭 当天无活动记录"
+                    : "📭 当天无活动记录 — 可能是休息日或未启动监控";
+                DateEvents = new ObservableCollection<ActivityEvent>();
+                TotalActiveText = "0h 0m";
+                EventCountText = "0 条事件";
+                AppStats = new ObservableCollection<StatsItem>();
+                return;
+            }
 
-            DateEvents = new ObservableCollection<ActivityEvent>(eventsTask.Result);
+            HasData = true;
+            DateEvents = new ObservableCollection<ActivityEvent>(events);
 
-            // 计算时长
-            var totalMs = eventsTask.Result
+            // 计算时长（排除空闲和睡眠）
+            var totalMs = events
                 .Where(e => e.Category != Category.Idle && e.Category != Category.Sleep)
                 .Sum(e => e.DurationMs);
             var ts = TimeSpan.FromMilliseconds(totalMs);
             TotalActiveText = ts.TotalHours >= 1
                 ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
                 : $"{ts.Minutes}m";
-            EventCountText = $"{eventsTask.Result.Count} 条事件";
+            EventCountText = $"{events.Count} 条事件";
 
-            AppStats = new ObservableCollection<StatsItem>(statsTask.Result);
+            if (!IsTimelineView)
+            {
+                // 3 天以前：加载统计概览
+                try
+                {
+                    var stats = await _statsService.GetByAppAsync();
+                    AppStats = new ObservableCollection<StatsItem>(stats);
+                }
+                catch
+                {
+                    AppStats = new ObservableCollection<StatsItem>();
+                }
+            }
+            else
+            {
+                AppStats = new ObservableCollection<StatsItem>();
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[HistoryVM] 加载失败: {ex.Message}");
+            HasData = false;
+            EmptyMessage = $"加载失败：{ex.Message}";
         }
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 加载范围统计数据（多日期选择模式）。
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadRangeStatsAsync()
+    {
+        if (IsLoading) return;
+        if (RangeEnd < RangeStart)
+        {
+            // 如果结束日期早于开始日期，交换
+            var temp = RangeEnd;
+            RangeEnd = RangeStart;
+            RangeStart = temp;
+        }
+
+        IsLoading = true;
+        try
+        {
+            var days = (RangeEnd - RangeStart).Days + 1;
+            RangeDaysText = $"{days} 天";
+
+            // 加载范围数据
+            var events = await _repository.GetByDateRangeAsync(RangeStart, RangeEnd);
+
+            if (events.Count == 0)
+            {
+                HasData = false;
+                EmptyMessage = "所选时间段内无活动记录";
+                DateEvents = new ObservableCollection<ActivityEvent>();
+                RangeTotalText = "0h 0m";
+                RangeDailyAvgText = "0h 0m";
+                AppStats = new ObservableCollection<StatsItem>();
+                return;
+            }
+
+            HasData = true;
+
+            // 聚合统计
+            var totalMs = events
+                .Where(e => e.Category != Category.Idle && e.Category != Category.Sleep)
+                .Sum(e => e.DurationMs);
+
+            var ts = TimeSpan.FromMilliseconds(totalMs);
+            RangeTotalText = ts.TotalHours >= 1
+                ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
+                : $"{ts.Minutes}m";
+
+            var avgTs = TimeSpan.FromMilliseconds(days > 0 ? totalMs / days : 0);
+            RangeDailyAvgText = avgTs.TotalHours >= 1
+                ? $"{(int)avgTs.TotalHours}h {avgTs.Minutes}m"
+                : $"{avgTs.Minutes}m";
+
+            // 按应用聚合
+            var appGroups = events
+                .Where(e => !string.IsNullOrEmpty(e.ProcessName))
+                .GroupBy(e => e.ProcessName!)
+                .Select(g => new StatsItem
+                {
+                    Name = g.Key,
+                    DurationMs = g.Where(e => e.Category != Category.Idle && e.Category != Category.Sleep)
+                                  .Sum(e => e.DurationMs),
+                    Percentage = totalMs > 0
+                        ? Math.Round((double)g.Where(e => e.Category != Category.Idle && e.Category != Category.Sleep)
+                                             .Sum(e => e.DurationMs) / totalMs * 100, 1)
+                        : 0
+                })
+                .OrderByDescending(s => s.DurationMs)
+                .ToList();
+
+            AppStats = new ObservableCollection<StatsItem>(appGroups);
+
+            // 更新时间标签
+            string[] weekDays = { "周日", "周一", "周二", "周三", "周四", "周五", "周六" };
+            DateLabel = $"{RangeStart:yyyy/M/d} - {RangeEnd:yyyy/M/d} ({days}天)";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HistoryVM] 范围统计加载失败: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 日期选择变化时重新加载。
+    /// </summary>
+    [RelayCommand]
+    private async Task OnDateSelectedAsync()
+    {
+        IsRangeMode = false;
+        await LoadDataAsync();
+    }
+
+    /// <summary>
+    /// 切换范围选择模式。
+    /// </summary>
+    [RelayCommand]
+    private void ToggleRangeMode()
+    {
+        IsRangeMode = !IsRangeMode;
+        if (!IsRangeMode)
+        {
+            // 退出范围模式时重新加载当前日期
+            _ = OnDateSelectedAsync();
         }
     }
 
@@ -114,7 +300,10 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand]
     private async Task PreviousDayAsync()
     {
+        if (IsRangeMode) return;
         SelectedDate = SelectedDate.AddDays(-1);
+        RangeStart = SelectedDate;
+        RangeEnd = SelectedDate;
         await LoadDataAsync();
     }
 
@@ -124,8 +313,11 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand]
     private async Task NextDayAsync()
     {
+        if (IsRangeMode) return;
         if (SelectedDate >= DateTime.Today) return;
         SelectedDate = SelectedDate.AddDays(1);
+        RangeStart = SelectedDate;
+        RangeEnd = SelectedDate;
         await LoadDataAsync();
     }
 
@@ -135,7 +327,10 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand]
     private async Task GoToTodayAsync()
     {
+        IsRangeMode = false;
         SelectedDate = DateTime.Today;
+        RangeStart = SelectedDate;
+        RangeEnd = SelectedDate;
         await LoadDataAsync();
     }
 
