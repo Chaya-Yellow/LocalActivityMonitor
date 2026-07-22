@@ -140,9 +140,9 @@ public class ActivityCategorizerTests
         // Act
         var (category, workTag) = categorizer.Classify(activity);
 
-        // Assert — W1-M1: 锁屏标记，category=break, workTag=break
-        category.Should().Be(Category.Break);
-        workTag.Should().Be(WorkTag.Break);
+        // Assert — W1-M1: 锁屏标记，category=locked
+        category.Should().Be(Category.Locked);
+        workTag.Should().Be(WorkTag.Unknown);
     }
 
     [Fact]

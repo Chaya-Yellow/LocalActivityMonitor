@@ -219,11 +219,11 @@ public class ActivityCategorizer : IActivityCategorizer
         // Step 2: 按进程名分类
         var processName = activity.ProcessName ?? string.Empty;
 
-        // 系统进程 → break（锁屏/登录/Win+L）
+        // 系统进程 → locked（锁屏/登录/Win+L）
         if (SystemProcesses.Contains(processName) ||
             SleepTitleKeywords.Any(k => (activity.WindowTitle ?? string.Empty).Contains(k, StringComparison.OrdinalIgnoreCase)))
         {
-            return (Models.Category.Break, Models.WorkTag.Break);
+            return (Models.Category.Locked, Models.WorkTag.Unknown);
         }
 
         // 浏览器 → web
@@ -344,7 +344,7 @@ public class ActivityCategorizer : IActivityCategorizer
         {
             Models.Category.Web or Models.Category.File
             or Models.Category.App or Models.Category.Idle
-            or Models.Category.Sleep or Models.Category.Break => true,
+            or Models.Category.Sleep or Models.Category.Locked => true,
             _ => false,
         };
     }
