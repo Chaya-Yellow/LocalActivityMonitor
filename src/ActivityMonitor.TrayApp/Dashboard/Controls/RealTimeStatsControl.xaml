@@ -69,6 +69,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- 标题 -->
@@ -87,13 +88,98 @@
                 <TabItem Header="类别" />
             </TabControl>
 
-            <!-- 统计列表 -->
+            <!-- 统计列表（分页） -->
             <ScrollViewer Grid.Row="2"
                           VerticalScrollBarVisibility="Auto"
                           Margin="0,6,0,0">
-                <ItemsControl ItemsSource="{Binding ElementName=Root, Path=CurrentStats}"
+                <ItemsControl ItemsSource="{Binding ElementName=Root, Path=PageItems}"
                               ItemTemplate="{StaticResource StatsItemTemplate}" />
             </ScrollViewer>
+
+            <!-- 分页导航栏 -->
+            <Border Grid.Row="3"
+                    Margin="0,6,0,0"
+                    Padding="6,4"
+                    CornerRadius="4"
+                    Background="#F5F5F5"
+                    BorderThickness="0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 上一页 -->
+                    <Button Grid.Column="0"
+                            Content="◀"
+                            Padding="6,1"
+                            MinWidth="26"
+                            FontSize="11"
+                            BorderThickness="1"
+                            Margin="0,0,4,0"
+                            IsEnabled="{Binding ElementName=Root, Path=HasPrevPage}"
+                            Click="OnPrevPageClick" />
+
+                    <!-- 页码按钮 -->
+                    <ItemsControl Grid.Column="1"
+                                  ItemsSource="{Binding ElementName=Root, Path=PageNumbers}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="local:PageNavItem">
+                                <Button Content="{Binding DisplayText}"
+                                        Command="{Binding ElementName=Root, Path=GoToPageCommand}"
+                                        CommandParameter="{Binding Page}"
+                                        Padding="6,1"
+                                        MinWidth="26"
+                                        FontSize="11"
+                                        BorderThickness="1"
+                                        Margin="1,0"
+                                        Cursor="Hand">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource TextPrimaryBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEllipsis}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                    <Setter Property="Foreground"
+                                                            Value="{StaticResource TextSecondaryBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter Property="Background"
+                                                            Value="{StaticResource AccentBrush}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- 下一页 -->
+                    <Button Grid.Column="2"
+                            Content="▶"
+                            Padding="6,1"
+                            MinWidth="26"
+                            FontSize="11"
+                            BorderThickness="1"
+                            Margin="4,0,0,0"
+                            IsEnabled="{Binding ElementName=Root, Path=HasNextPage}"
+                            Click="OnNextPageClick" />
+                </Grid>
+            </Border>
         </Grid>
     </Border>
 </UserControl>
