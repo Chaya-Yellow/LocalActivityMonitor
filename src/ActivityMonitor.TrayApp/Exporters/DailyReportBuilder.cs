@@ -18,13 +18,13 @@ public class DailyReportBuilder
     /// </summary>
     /// <param name="events">指定日期的活动事件列表（按 StartTime 升序）。</param>
     /// <param name="summary">可选的每日聚合数据（用于用户备注等）。</param>
-    public DailyReportData Build(IReadOnlyList<ActivityEvent> events, DailySummary? summary = null)
+    public DailyReportData Build(DateTime date, IReadOnlyList<ActivityEvent> events, DailySummary? summary = null)
     {
         var data = new DailyReportData();
 
         if (events.Count == 0)
         {
-            data.Date = DateTime.Today;
+            data.Date = date.Date;
             return data;
         }
 

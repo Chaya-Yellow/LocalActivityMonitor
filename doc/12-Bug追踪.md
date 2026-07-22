@@ -24,7 +24,7 @@
 
 | 编号 | 测试用例 | 现象（实际 vs 预期） | 责任人 | 涉及文件:行号 | 状态 | 备注 |
 |:----:|---------|-------------------|:------:|:-------------|:----:|:----:|
-| | | | | | | |
+| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🟢 已修复 | 空事件时 Date 错误 → fix/report-bug-001 |
 
 ---
 
@@ -52,7 +52,7 @@
 
 | 编号 | 摘要 | 状态 |
 |:----:|------|:----:|
-| — | 暂无 | — |
+| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🟢 已修复 |
 
 ### 技术架构师（数据层/接口/Win32）
 
@@ -65,5 +65,21 @@
 ## Bug 详细描述
 
 > 每个 Bug 展开写在这里，包括复现步骤、环境信息、截图/日志。
+
+### BUG-001: ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections
+- **责任人：** 数据报表工程师
+- **涉及文件：** DailyReportBuilder.cs:27
+- **复现步骤：**
+  1. 调用 `MarkdownExporter.ExportDailyAsync(new DateTime(2026, 7, 21))`
+  2. 目标日期无任何活动事件（空数据库）
+  3. `DailyReportBuilder.Build()` 中 `events.Count == 0` 分支设置 `data.Date = DateTime.Today`
+- **实际结果：** 生成的日报标题为 "2026-07-22 (周三)" （运行测试时的当天日期）
+- **预期结果：** 日报标题应为 "2026-07-21 (周二)"（与传入日期参数一致）
+- **日志：**
+  ```
+  Expected markdown "# 工作日报 - 2026-07-22 (周三)
+  ..." to contain "2026-07-21".
+  ```
+- **发现日期：** 2026-07-22
 
 ---
