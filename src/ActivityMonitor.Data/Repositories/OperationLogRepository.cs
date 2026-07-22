@@ -112,6 +112,40 @@ public class OperationLogRepository : IOperationLogRepository
         return logs;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> UpdateAsync(OperationLog log)
+    {
+        const string sql = @"
+            UPDATE operation_logs
+            SET window_title = @window_title,
+                detail = COALESCE(@detail, detail)
+            WHERE id = @id;";
+
+        using var connection = await _db.GetConnectionAsync();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("@id", log.Id);
+        cmd.Parameters.AddWithValue("@window_title", (object?)log.WindowTitle ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@detail", (object?)log.Detail ?? DBNull.Value);
+
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteAsync(long id)
+    {
+        const string sql = "DELETE FROM operation_logs WHERE id = @id;";
+
+        using var connection = await _db.GetConnectionAsync();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("@id", id);
+
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return affected > 0;
+    }
+
     private static OperationLog ReadLog(SqliteDataReader reader)
     {
         var log = new OperationLog
