@@ -19,6 +19,7 @@ public class ActivityEngineTests : IDisposable
     private readonly IActivityTracker _tracker;
     private readonly IIdleDetector _idleDetector;
     private readonly ISleepDetector _sleepDetector;
+    private readonly ILockScreenDetector _lockScreenDetector;
     private readonly IActivityRepository _repository;
     private readonly IActivityCategorizer _categorizer;
     private readonly CrashRecoveryService _crashRecovery;
@@ -31,6 +32,7 @@ public class ActivityEngineTests : IDisposable
         _tracker = Substitute.For<IActivityTracker>();
         _idleDetector = Substitute.For<IIdleDetector>();
         _sleepDetector = Substitute.For<ISleepDetector>();
+        _lockScreenDetector = Substitute.For<ILockScreenDetector>();
         _repository = Substitute.For<IActivityRepository>();
         _categorizer = Substitute.For<IActivityCategorizer>();
         _crashRecovery = new CrashRecoveryService(_tempDir);
@@ -54,6 +56,7 @@ public class ActivityEngineTests : IDisposable
         IActivityTracker? tracker = null,
         IIdleDetector? idleDetector = null,
         ISleepDetector? sleepDetector = null,
+        ILockScreenDetector? lockScreenDetector = null,
         IActivityRepository? repository = null,
         IActivityCategorizer? categorizer = null,
         CrashRecoveryService? crashRecovery = null)
@@ -62,6 +65,7 @@ public class ActivityEngineTests : IDisposable
             tracker ?? _tracker,
             idleDetector ?? _idleDetector,
             sleepDetector ?? _sleepDetector,
+            lockScreenDetector ?? _lockScreenDetector,
             repository ?? _repository,
             categorizer ?? _categorizer,
             crashRecovery ?? _crashRecovery);
@@ -76,7 +80,7 @@ public class ActivityEngineTests : IDisposable
     {
         // Act — pass null directly, bypass CreateEngine helper
         var act = () => new ActivityEngine(
-            null!, _idleDetector, _sleepDetector, _repository, _categorizer, _crashRecovery);
+            null!, _idleDetector, _sleepDetector, _lockScreenDetector, _repository, _categorizer, _crashRecovery);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
@@ -88,7 +92,7 @@ public class ActivityEngineTests : IDisposable
     {
         // Act
         var act = () => new ActivityEngine(
-            _tracker, null!, _sleepDetector, _repository, _categorizer, _crashRecovery);
+            _tracker, null!, _sleepDetector, _lockScreenDetector, _repository, _categorizer, _crashRecovery);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
@@ -100,7 +104,7 @@ public class ActivityEngineTests : IDisposable
     {
         // Act
         var act = () => new ActivityEngine(
-            _tracker, _idleDetector, null!, _repository, _categorizer, _crashRecovery);
+            _tracker, _idleDetector, null!, _lockScreenDetector, _repository, _categorizer, _crashRecovery);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
@@ -108,11 +112,23 @@ public class ActivityEngineTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_NullLockScreenDetector_ThrowsArgumentNullException()
+    {
+        // Act
+        var act = () => new ActivityEngine(
+            _tracker, _idleDetector, _sleepDetector, null!, _repository, _categorizer, _crashRecovery);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("lockScreenDetector");
+    }
+
+    [Fact]
     public void Constructor_NullRepository_ThrowsArgumentNullException()
     {
         // Act
         var act = () => new ActivityEngine(
-            _tracker, _idleDetector, _sleepDetector, null!, _categorizer, _crashRecovery);
+            _tracker, _idleDetector, _sleepDetector, _lockScreenDetector, null!, _categorizer, _crashRecovery);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
@@ -124,7 +140,7 @@ public class ActivityEngineTests : IDisposable
     {
         // Act
         var act = () => new ActivityEngine(
-            _tracker, _idleDetector, _sleepDetector, _repository, _categorizer, null!);
+            _tracker, _idleDetector, _sleepDetector, _lockScreenDetector, _repository, _categorizer, null!);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
