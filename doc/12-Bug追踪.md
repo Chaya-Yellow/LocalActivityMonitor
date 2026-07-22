@@ -24,7 +24,7 @@
 
 | 编号 | 测试用例 | 现象（实际 vs 预期） | 责任人 | 涉及文件:行号 | 状态 | 备注 |
 |:----:|---------|-------------------|:------:|:-------------|:----:|:----:|
-| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🔴 待修复 | 空事件时 Date 错误 |
+| BUG-001 | ExportDailyAsync_NoEvents_ReturnsMarkdownWithAllSections | 实际:2026-07-22 预期:2026-07-21 | 数据报表工程师 | DailyReportBuilder.cs:27 | 🟢 已修复 | 空事件时 Date 错误 → fix/report-bug-001 |
 
 ---
 
@@ -52,7 +52,7 @@
 
 | 编号 | 摘要 | 状态 |
 |:----:|------|:----:|
-| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🔴 待修复 |
+| BUG-001 | 空事件时日报日期显示为 DateTime.Today | 🟢 已修复 |
 
 ### 技术架构师（数据层/接口/Win32）
 
