@@ -1,0 +1,54 @@
+<UserControl x:Class="ActivityMonitor.TrayApp.Dashboard.Controls.TimeSegmentCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="160" d:DesignWidth="200"
+             x:Name="Root"
+             BorderThickness="0" Margin="3"
+             MinWidth="160" MaxWidth="200" MinHeight="140">
+
+    <Border Style="{StaticResource CardBorder}"
+            Padding="8,6" Cursor="Hand"
+            ToolTip="点击查看该时段活动详情">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Text="{Binding ElementName=Root, Path=TimeRangeText}"
+                       FontSize="13" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       HorizontalAlignment="Center" Margin="0,0,0,4" />
+
+            <Grid Grid.Row="1" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" Width="80" Height="80"
+                      Margin="0,0,6,0" VerticalAlignment="Center"
+                      x:Name="DonutContainer">
+                    <TextBlock x:Name="TotalTimeText" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Text="0m" IsHitTestVisible="False" />
+                </Grid>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                            x:Name="SoftwareListPanel" />
+            </Grid>
+
+            <TextBlock Grid.Row="2" FontSize="10"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center">
+                <Run Text="活跃 " /><Run Text="{Binding ElementName=Root, Path=TotalActiveText}" />
+            </TextBlock>
+        </Grid>
+    </Border>
+</UserControl>

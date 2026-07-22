@@ -710,4 +710,160 @@ public class DailyReportBuilderTests
             restored.Should().ContainKey(kvp.Key).WhoseValue.Should().Be(kvp.Value);
         }
     }
+
+    // ────────────────────────────────────────────
+    //  Build – operation logs (W1-M3)
+    // ────────────────────────────────────────────
+
+    private static OperationLog CreateOperationLog(
+        DateTime timestamp,
+        string? processName = null,
+        string? windowTitle = null,
+        string? category = null,
+        string? detail = null)
+    {
+        return new OperationLog
+        {
+            Timestamp = timestamp,
+            ProcessName = processName ?? "code.exe",
+            WindowTitle = windowTitle ?? $"{processName ?? "code.exe"} - main",
+            Category = category,
+            Detail = detail,
+        };
+    }
+
+    [Fact]
+    public void Build_WithNullOperationLogs_OmitsSection()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: null);
+
+        data.OperationLogs.Should().NotBeNull();
+        data.OperationLogs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_WithEmptyOperationLogs_ReturnsEmptyList()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: Array.Empty<OperationLog>());
+
+        data.OperationLogs.Should().NotBeNull();
+        data.OperationLogs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_WithOperationLogs_PopulatesEntryProperties()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+        var logs = new List<OperationLog>
+        {
+            CreateOperationLog(date.AddHours(9).AddMinutes(5), "code.exe", category: "app"),
+            CreateOperationLog(date.AddHours(9).AddMinutes(30), "chrome.exe", category: "web"),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: logs);
+
+        data.OperationLogs.Should().HaveCount(2);
+        data.OperationLogs[0].AppName.Should().Be("code");
+        data.OperationLogs[0].Category.Should().Be("app");
+        data.OperationLogs[1].AppName.Should().Be("chrome");
+        data.OperationLogs[1].Category.Should().Be("web");
+    }
+
+    [Fact]
+    public void Build_OperationLogEntry_Formatting()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+        var logs = new List<OperationLog>
+        {
+            CreateOperationLog(date.AddHours(9).AddMinutes(5).AddSeconds(30), "code.exe"),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: logs);
+
+        var entry = data.OperationLogs[0];
+        entry.TimestampFormatted.Should().Be("09:05:30");
+    }
+
+    [Fact]
+    public void Build_OperationLogWithDetail_PreservesDetail()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("chrome.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+        var logs = new List<OperationLog>
+        {
+            CreateOperationLog(date.AddHours(9), "chrome.exe",
+                category: "web", detail: "https://github.com"),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: logs);
+
+        data.OperationLogs.Should().HaveCount(1);
+        data.OperationLogs[0].Detail.Should().Be("https://github.com");
+    }
+
+    [Fact]
+    public void Build_OperationLogWithWindowTitle_PreservesTitle()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+        var logs = new List<OperationLog>
+        {
+            CreateOperationLog(date.AddHours(9), "code.exe",
+                windowTitle: "Program.cs - ActivityMonitor"),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: logs);
+
+        data.OperationLogs.Should().HaveCount(1);
+        data.OperationLogs[0].WindowTitle.Should().Be("Program.cs - ActivityMonitor");
+    }
+
+    [Fact]
+    public void Build_OperationLogsInOrder_MaintainsSequence()
+    {
+        var date = new DateTime(2026, 7, 21);
+        var events = new List<ActivityEvent>
+        {
+            CreateActiveEvent("code.exe", WorkTag.Work, 3600000, date.AddHours(9)),
+        };
+        var logs = new List<OperationLog>
+        {
+            CreateOperationLog(date.AddHours(9), "code.exe"),
+            CreateOperationLog(date.AddHours(9).AddMinutes(10), "chrome.exe"),
+            CreateOperationLog(date.AddHours(9).AddMinutes(20), "code.exe"),
+        };
+
+        var data = _builder.Build(date, events, operationLogs: logs);
+
+        data.OperationLogs.Should().HaveCount(3);
+        data.OperationLogs[0].AppName.Should().Be("code");
+        data.OperationLogs[1].AppName.Should().Be("chrome");
+        data.OperationLogs[2].AppName.Should().Be("code");
+    }
 }

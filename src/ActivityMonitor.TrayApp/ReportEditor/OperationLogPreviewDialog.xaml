@@ -1,0 +1,432 @@
+<Window x:Class="ActivityMonitor.TrayApp.ReportEditor.OperationLogPreviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ActivityMonitor.TrayApp.ReportEditor"
+        mc:Ignorable="d"
+        x:Name="RootDialog"
+        Title="操作日志预览"
+        Height="520" Width="740"
+        MinHeight="350" MinWidth="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}">
+
+    <!-- 输入绑定：Esc 键关闭窗口 -->
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+    </Window.InputBindings>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <!-- 标题统计行 -->
+            <RowDefinition Height="Auto" />
+            <!-- 时间线日志列表 -->
+            <RowDefinition Height="*" />
+            <!-- 导出状态栏 -->
+            <RowDefinition Height="Auto" />
+            <!-- 底部操作栏 -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════ 标题行：日期 + 条数统计 ═══════ -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Title}"
+                       FontSize="15" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <!-- 加载指示器（仅在加载中显示） -->
+            <TextBlock Grid.Column="1"
+                       Text="正在加载..."
+                       FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+
+        <!-- ═══════ 时间线日志列表 ═══════ -->
+        <Border Grid.Row="1">
+            <!-- 通过 Border.Style 设置 CardBorder 样式 -->
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                    <Setter Property="Padding" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Logs.Count}" Value="0">
+                            <Setter Property="Padding" Value="20" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <ListView ItemsSource="{Binding Logs}"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      SelectionMode="Single">
+                <!-- 设置 ListView 样式：移除默认选中高亮 -->
+                <ListView.Resources>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+
+                    <!-- 行内小按钮样式 -->
+                    <Style x:Key="InlineButton" TargetType="Button">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Padding" Value="4,2" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="3"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#E8F0FE" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+
+                    <Style x:Key="InlineDeleteButton" TargetType="Button" BasedOn="{StaticResource InlineButton}">
+                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                    </Style>
+
+                    <Style x:Key="InlineSaveButton" TargetType="Button" BasedOn="{StaticResource InlineButton}">
+                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    </Style>
+                </ListView.Resources>
+
+                <ListView.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:OperationLogItem}">
+                        <!-- 每条日志：时间 | 时间线竖线+圆点 | 内容卡片 -->
+                        <Grid Height="65" Margin="4,0">
+                            <Grid.ColumnDefinitions>
+                                <!-- 时间戳列 -->
+                                <ColumnDefinition Width="68" />
+                                <!-- 竖线+圆点列 -->
+                                <ColumnDefinition Width="28" />
+                                <!-- 内容卡片列 -->
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 时间戳 -->
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding TimeFormatted}"
+                                       FontSize="12"
+                                       FontFamily="Consolas"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Right"
+                                       Margin="0,0,8,0" />
+
+                            <!-- ═══ 竖线 + 圆点 ═══ -->
+                            <Grid Grid.Column="1">
+                                <!-- 上半段竖线（第一条为空，其余显示） -->
+                                <Border x:Name="LineTop"
+                                        Width="2"
+                                        Background="#E0E0E0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Height="22"
+                                        Visibility="Visible" />
+
+                                <!-- 下半段竖线（最后一条为空，其余显示） -->
+                                <Border x:Name="LineBottom"
+                                        Width="2"
+                                        Background="#E0E0E0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Height="22"
+                                        Visibility="Visible" />
+
+                                <!-- 圆点 -->
+                                <Ellipse x:Name="DotMarker"
+                                         Width="10"
+                                         Height="10"
+                                         Fill="#B0BEC5"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Stroke="White"
+                                         StrokeThickness="2" />
+                            </Grid>
+
+                            <!-- 内容卡片 -->
+                            <Border Grid.Column="2"
+                                    Background="{StaticResource CardBgBrush}"
+                                    CornerRadius="6"
+                                    Padding="10,6"
+                                    Margin="0,4,8,4"
+                                    BorderBrush="#E8E8E8"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- ═══ 查看模式：只读标题 + 编辑/删除按钮 ═══ -->
+                                    <!-- 窗口标题（查看模式） -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               x:Name="TitleTextBlock"
+                                               Text="{Binding WindowTitle}"
+                                               FontSize="12.5"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Margin="0,0,0,3"
+                                               VerticalAlignment="Center" />
+
+                                    <!-- 窗口标题编辑框（编辑模式） -->
+                                    <TextBox Grid.Row="0" Grid.ColumnSpan="2"
+                                             x:Name="TitleTextBox"
+                                             Text="{Binding WindowTitle, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="12.5"
+                                             Padding="2,1"
+                                             Margin="0,0,0,3"
+                                             VerticalAlignment="Center"
+                                             BorderBrush="{StaticResource PrimaryBrush}"
+                                             BorderThickness="1" />
+
+                                    <!-- 查看模式按钮组 -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1"
+                                                x:Name="ViewButtons"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="6,0,0,3">
+                                        <Button Content="&#x270F; 编辑"
+                                                Style="{StaticResource InlineButton}"
+                                                Command="{Binding DataContext.EditItemCommand, ElementName=RootDialog}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="&#x1F5D1; 删除"
+                                                Style="{StaticResource InlineDeleteButton}"
+                                                Command="{Binding DataContext.DeleteItemCommand, ElementName=RootDialog}"
+                                                CommandParameter="{Binding}"
+                                                Margin="2,0,0,0" />
+                                    </StackPanel>
+
+                                    <!-- 编辑模式按钮组 -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1"
+                                                x:Name="EditButtons"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="6,0,0,3">
+                                        <Button Content="&#x2714; 保存"
+                                                Style="{StaticResource InlineSaveButton}"
+                                                Command="{Binding DataContext.SaveItemCommand, ElementName=RootDialog}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="&#x2716; 取消"
+                                                Style="{StaticResource InlineDeleteButton}"
+                                                Command="{Binding DataContext.CancelEditCommand, ElementName=RootDialog}"
+                                                CommandParameter="{Binding}"
+                                                Margin="2,0,0,0" />
+                                    </StackPanel>
+
+                                    <!-- 进程名 + 类别标签（第二行，跨列） -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ProcessName}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0" />
+
+                                        <!-- 类别徽章 -->
+                                        <Border Background="{Binding CategoryColor}"
+                                                CornerRadius="3"
+                                                Padding="5,1"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CategoryLabel}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- 数据触发器：首尾项隐藏对应的半段竖线 -->
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsFirst}" Value="True">
+                                <Setter TargetName="LineTop" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="DotMarker" Property="Fill" Value="{StaticResource PrimaryBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLast}" Value="True">
+                                <Setter TargetName="LineBottom" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <!-- 编辑模式触发器：切换标题显示 -->
+                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                <Setter TargetName="TitleTextBlock" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="TitleTextBox" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="ViewButtons" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="EditButtons" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsEditing}" Value="False">
+                                <Setter TargetName="TitleTextBlock" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="TitleTextBox" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="ViewButtons" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="EditButtons" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Border>
+
+        <!-- 空列表覆盖层 -->
+        <TextBlock Grid.Row="1"
+                   Text="暂无操作日志记录"
+                   FontSize="14"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Logs.Count}" Value="0" />
+                                <Condition Binding="{Binding IsLoading}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- ═══════ 导出状态栏 ═══════ -->
+        <Border Grid.Row="2"
+                Margin="0,6,0,0"
+                Padding="8,5"
+                CornerRadius="4">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsExporting}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Setter Property="Background" Value="#FFF3E0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsExportSuccess}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Setter Property="Background" Value="#E8F5E9" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding ExportStatus}"
+                       FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" />
+        </Border>
+
+        <!-- ═══════ 底部操作栏 ═══════ -->
+        <Border Grid.Row="3"
+                Margin="0,10,0,0"
+                Padding="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 统计提示（加载完成后显示条数） -->
+                <TextBlock Grid.Column="0"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoaded}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="Text">
+                                        <Setter.Value>
+                                            <MultiBinding StringFormat="共 {0} 条日志记录">
+                                                <Binding Path="Logs.Count" />
+                                            </MultiBinding>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- 导出按钮：将编辑后的日志嵌入日报并导出 -->
+                <Button Grid.Column="1"
+                        Content="&#x1F4BE; 导出日志到日报"
+                        Padding="14,6"
+                        FontSize="12"
+                        Margin="0,0,8,0"
+                        Command="{Binding ExportToFileCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+                            <Setter Property="Background" Value="{StaticResource SuccessBrush}" />
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsExporting}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                    <Setter Property="Background" Value="{StaticResource TextSecondaryBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <!-- 关闭按钮 -->
+                <Button Grid.Column="2"
+                        Content="关闭"
+                        Style="{StaticResource PrimaryButton}"
+                        Background="#666666"
+                        Padding="16,6"
+                        FontSize="13"
+                        Command="{Binding CloseCommand}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

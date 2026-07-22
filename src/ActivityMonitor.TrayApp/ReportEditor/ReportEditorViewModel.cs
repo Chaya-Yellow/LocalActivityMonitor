@@ -91,7 +91,38 @@ public partial class ReportEditorViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 弹出操作日志预览对话框。可在导出前预览或手动查看。
+    /// </summary>
+    [RelayCommand]
+    private async Task ShowLogPreviewAsync()
+    {
+        try
+        {
+            var ownerWindow = System.Windows.Application.Current.Windows
+                .OfType<Window>()
+                .FirstOrDefault(w => w is ReportEditorWindow);
+
+            var dialog = new OperationLogPreviewDialog(ReportDate)
+            {
+                Owner = ownerWindow
+            };
+
+            // ShowDialog 会阻塞当前线程，使用 await 需要异步包装
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                dialog.ShowDialog();
+            }, System.Windows.Threading.DispatcherPriority.Normal);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"预览日志失败：{ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"[ReportEditorVM] 预览日志失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// 将日报导出为 Markdown 文件。
+    /// 在导出前自动弹出操作日志预览对话框。
     /// </summary>
     [RelayCommand]
     private async Task ExportToFileAsync()
@@ -102,8 +133,10 @@ public partial class ReportEditorViewModel : ObservableObject
 
         try
         {
-            // 先写入当前编辑后的内容
-            // 使用 Mock 默认导出路径（桌面）
+            // ── 导出前弹出操作日志预览 ──
+            ShowLogPreviewDialog();
+
+            // 执行导出
             var filePath = await _exporter.ExportDailyToFileAsync(ReportDate);
 
             StatusMessage = $"✅ 导出成功：{filePath}";
@@ -119,6 +152,32 @@ public partial class ReportEditorViewModel : ObservableObject
         finally
         {
             IsExporting = false;
+        }
+    }
+
+    /// <summary>
+    /// 同步弹出操作日志预览对话框（ShowDialog），必须在 UI 线程调用。
+    /// 加载失败不会阻断导出流程。
+    /// </summary>
+    private void ShowLogPreviewDialog()
+    {
+        try
+        {
+            var ownerWindow = System.Windows.Application.Current.Windows
+                .OfType<Window>()
+                .FirstOrDefault(w => w is ReportEditorWindow);
+
+            var dialog = new OperationLogPreviewDialog(ReportDate)
+            {
+                Owner = ownerWindow
+            };
+
+            dialog.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            // 加载日志失败不阻断导出
+            System.Diagnostics.Debug.WriteLine($"[ReportEditorVM] 日志预览加载失败（不阻断导出）: {ex.Message}");
         }
     }
 

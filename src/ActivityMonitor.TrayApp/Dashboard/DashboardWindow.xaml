@@ -143,31 +143,46 @@
             </TextBlock>
         </Border>
 
-        <!-- ═══════ 主内容区：时间线 + 实时统计 ═══════ -->
-        <Grid Grid.Row="3">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="2*" />
-            </Grid.ColumnDefinitions>
+        <!-- ═══════ 主内容区：Tab 切换 时间线 / 时段聚合 ═══════ -->
+        <TabControl Grid.Row="3"
+                    BorderThickness="0"
+                    Background="Transparent">
+            <TabItem Header="⏱ 时间线"
+                     BorderThickness="0"
+                     Padding="0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
 
-            <!-- 左侧：时间线 -->
-            <controls:TimelineControl Grid.Column="0"
-                                      Events="{Binding TodayEvents}"
-                                      EditEventCommand="{Binding EditEventCommand}"
-                                      DeleteEventCommand="{Binding DeleteEventCommand}"
-                                      InsertOfflineCommand="{Binding InsertOfflineActivityCommand}"
-                                      ViewDetailsCommand="{Binding ViewDetailsCommand}"
-                                      MarkAsFalsePositiveCommand="{Binding MarkAsFalsePositiveCommand}" />
+                    <!-- 左侧：时间线 -->
+                    <controls:TimelineControl Grid.Column="0"
+                                              Events="{Binding TodayEvents}"
+                                              EditEventCommand="{Binding EditEventCommand}"
+                                              DeleteEventCommand="{Binding DeleteEventCommand}"
+                                              InsertOfflineCommand="{Binding InsertOfflineActivityCommand}"
+                                              ViewDetailsCommand="{Binding ViewDetailsCommand}"
+                                              MarkAsFalsePositiveCommand="{Binding MarkAsFalsePositiveCommand}" />
 
-            <!-- 右侧：实时统计 -->
-            <controls:RealTimeStatsControl Grid.Column="2"
-                                           AppStats="{Binding AppStats}"
-                                           ProjectStats="{Binding ProjectStats}"
-                                           DomainStats="{Binding DomainStats}"
-                                           CategoryStats="{Binding CategoryStats}"
-                                           SelectedTab="{Binding SelectedStatsTab}" />
-        </Grid>
+                    <!-- 右侧：实时统计 -->
+                    <controls:RealTimeStatsControl Grid.Column="2"
+                                                   AppStats="{Binding AppStats}"
+                                                   ProjectStats="{Binding ProjectStats}"
+                                                   DomainStats="{Binding DomainStats}"
+                                                   CategoryStats="{Binding CategoryStats}"
+                                                   SelectedTab="{Binding SelectedStatsTab}" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="⏲ 时段聚合 (30分钟)"
+                     BorderThickness="0"
+                     Padding="0">
+                <controls:TimeSegmentView Segments="{Binding TimeSegmentStats}"
+                                          ViewDetailCommand="{Binding ViewTimeSegmentDetailCommand}" />
+            </TabItem>
+        </TabControl>
 
         <!-- ═══════ 底部操作栏 ═══════ -->
         <Border Grid.Row="4" Margin="0,12,0,0" Padding="0,8,0,0"

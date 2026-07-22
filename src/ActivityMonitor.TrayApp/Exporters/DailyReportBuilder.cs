@@ -14,11 +14,12 @@ public class DailyReportBuilder
     private static readonly TimeSpan Noon = new(12, 0, 0);
 
     /// <summary>
-    /// 从活动事件和用户备注构建日报数据。
+    /// 从活动事件、用户备注和操作日志构建日报数据。
     /// </summary>
     /// <param name="events">指定日期的活动事件列表（按 StartTime 升序）。</param>
     /// <param name="summary">可选的每日聚合数据（用于用户备注等）。</param>
-    public DailyReportData Build(DateTime date, IReadOnlyList<ActivityEvent> events, DailySummary? summary = null)
+    /// <param name="operationLogs">可选的当日操作日志列表（窗口切换记录，按 Timestamp 升序）。</param>
+    public DailyReportData Build(DateTime date, IReadOnlyList<ActivityEvent> events, DailySummary? summary = null, IReadOnlyList<OperationLog>? operationLogs = null)
     {
         var data = new DailyReportData();
 
@@ -92,6 +93,22 @@ public class DailyReportBuilder
         // ── 用户备注 ──────────────────────────────────────────────
         data.UserNotes = summary?.UserNotes;
 
+        // ── 操作日志（W1-M3）──────────────────────────────────────
+        if (operationLogs is { Count: > 0 })
+        {
+            foreach (var log in operationLogs)
+            {
+                data.OperationLogs.Add(new OperationLogEntry
+                {
+                    Timestamp = log.Timestamp,
+                    AppName = GetOperationLogDisplayName(log),
+                    WindowTitle = log.WindowTitle,
+                    Category = log.Category,
+                    Detail = log.Detail,
+                });
+            }
+        }
+
         return data;
     }
 
@@ -134,6 +151,13 @@ public class DailyReportBuilder
         if (!string.IsNullOrEmpty(ev.ProcessName))
             return Path.GetFileNameWithoutExtension(ev.ProcessName);
         return ev.ProcessName ?? "未知";
+    }
+
+    private static string GetOperationLogDisplayName(OperationLog log)
+    {
+        if (!string.IsNullOrEmpty(log.ProcessName))
+            return Path.GetFileNameWithoutExtension(log.ProcessName);
+        return log.ProcessName ?? "未知";
     }
 
     private static Dictionary<string, long> BuildBreakdown(
@@ -193,6 +217,9 @@ public class DailyReportData
 
     // ── 备注 ──
     public string? UserNotes { get; set; }
+
+    // ── 操作日志（W1-M3）──
+    public List<OperationLogEntry> OperationLogs { get; set; } = new();
 }
 
 /// <summary>
@@ -244,4 +271,29 @@ public class TimelineEntry
 
     /// <summary>格式化的结束时间（HH:mm），进行中返回"至今"。</summary>
     public string EndTimeFormatted => EndTime?.ToString("HH:mm") ?? "至今";
+}
+
+/// <summary>
+/// 操作日志显示条目（W1-M3）。
+/// 对应 <see cref="OperationLog"/> 的日报展示层模型，格式化时间戳供 Markdown 渲染。
+/// </summary>
+public class OperationLogEntry
+{
+    /// <summary>操作时间戳。</summary>
+    public DateTime Timestamp { get; set; }
+
+    /// <summary>进程显示名（如 "code"、"chrome"）。</summary>
+    public string AppName { get; set; } = string.Empty;
+
+    /// <summary>窗口标题。</summary>
+    public string? WindowTitle { get; set; }
+
+    /// <summary>活动类别。</summary>
+    public string? Category { get; set; }
+
+    /// <summary>详细描述（URL / 文件路径等额外上下文）。</summary>
+    public string? Detail { get; set; }
+
+    /// <summary>格式化的时间戳（HH:mm:ss）。</summary>
+    public string TimestampFormatted => Timestamp.ToString("HH:mm:ss");
 }

@@ -104,6 +104,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Exporting 进度指示 -->
@@ -123,7 +124,17 @@
                 </TextBlock.Style>
             </TextBlock>
 
+            <!-- 操作日志预览按钮：手动查看窗口切换记录 -->
             <Button Grid.Column="1"
+                    Content="📋 操作日志"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource WarningBrush}"
+                    Command="{Binding ShowLogPreviewCommand}"
+                    Margin="0,0,6,0"
+                    Padding="12,6"
+                    ToolTip="预览当日的操作日志（窗口切换记录）" />
+
+            <Button Grid.Column="2"
                     Content="📋 复制到剪贴板"
                     Style="{StaticResource PrimaryButton}"
                     Background="{StaticResource PrimaryBrush}"
@@ -131,7 +142,7 @@
                     Margin="0,0,8,0"
                     Padding="12,6" />
 
-            <Button Grid.Column="2"
+            <Button Grid.Column="3"
                     Content="💾 导出为 .md"
                     Background="{StaticResource SuccessBrush}"
                     Command="{Binding ExportToFileCommand}"
@@ -148,7 +159,7 @@
                     </Button.Style>
                 </Button>
 
-            <Button Grid.Column="3"
+            <Button Grid.Column="4"
                     Content="关闭"
                     Style="{StaticResource PrimaryButton}"
                     Background="#666666"

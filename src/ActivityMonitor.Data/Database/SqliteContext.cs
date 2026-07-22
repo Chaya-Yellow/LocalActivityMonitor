@@ -181,6 +181,17 @@ public class SqliteContext : IDisposable
                 resolved_at         TEXT,
                 FOREIGN KEY (event_id) REFERENCES activity_events(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp           TEXT NOT NULL,
+                window_title        TEXT,
+                process_name        TEXT,
+                process_id          INTEGER,
+                process_path        TEXT,
+                category            TEXT,
+                detail              TEXT
+            );
         ";
     }
 
@@ -202,6 +213,8 @@ public class SqliteContext : IDisposable
             CREATE INDEX IF NOT EXISTS idx_misreport_event   ON misreport_flags(event_id);
             CREATE INDEX IF NOT EXISTS idx_misreport_status  ON misreport_flags(is_resolved, created_at);
             CREATE INDEX IF NOT EXISTS idx_misreport_type    ON misreport_flags(flag_type, is_resolved);
+
+            CREATE INDEX IF NOT EXISTS idx_oplogs_date ON operation_logs(timestamp);
         ";
     }
 

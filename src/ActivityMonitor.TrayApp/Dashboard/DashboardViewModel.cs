@@ -27,6 +27,7 @@ public partial class DashboardViewModel : ObservableObject
     private readonly ITodayStatsService _statsService;
     private readonly IActivityRepository _repository;
     private readonly IReportExporter _exporter;
+    private readonly ITimeSegmentStatsService _timeSegmentService;
 
     // ──────────────── 定时刷新 ────────────────
     private readonly DispatcherTimer _refreshTimer;
@@ -154,6 +155,10 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private string _idleHoursText = "0h 0m";
 
+    /// <summary>时段聚合统计（48 个半小时段）。</summary>
+    [ObservableProperty]
+    private ObservableCollection<TimeSegmentStats> _timeSegmentStats = new();
+
     /// <summary>事件数文本。</summary>
     [ObservableProperty]
     private string _eventCountText = "0 条";
@@ -180,6 +185,7 @@ public partial class DashboardViewModel : ObservableObject
         _statsService = new MockTodayStatsService();
         _repository = new MockActivityRepository();
         _exporter = new MockReportExporter();
+        _timeSegmentService = new MockTimeSegmentStatsService();
 
         // 设置日期标签
         var now = DateTime.Now;
@@ -283,11 +289,12 @@ public partial class DashboardViewModel : ObservableObject
 
         try
         {
-            // 并行加载概览和时间线
+            // 并行加载概览、时间线和时段聚合
             var overviewTask = _statsService.GetOverviewAsync();
             var eventsTask = _repository.GetTodayEventsAsync();
+            var segmentTask = _timeSegmentService.GetTimeSegmentStatsAsync(DateTime.Today);
 
-            await Task.WhenAll(overviewTask, eventsTask);
+            await Task.WhenAll(overviewTask, eventsTask, segmentTask);
 
             // 过滤误报记录
             var allEvents = eventsTask.Result;
@@ -299,6 +306,9 @@ public partial class DashboardViewModel : ObservableObject
             // 从过滤后的事件重建统计和概览
             TodayOverview = overviewTask.Result;
             RebuildFromEvents(filteredEvents);
+
+            // 更新时段聚合统计
+            TimeSegmentStats = new ObservableCollection<TimeSegmentStats>(segmentTask.Result);
         }
         catch (Exception ex)
         {
@@ -477,6 +487,20 @@ public partial class DashboardViewModel : ObservableObject
         detailsWindow.Owner = System.Windows.Application.Current.Windows
             .OfType<DashboardWindow>().FirstOrDefault();
         detailsWindow.ShowDialog();
+    }
+
+    /// <summary>
+    /// 查看时段活动详情（W1-M2）。
+    /// 弹窗显示半小时时段内的所有软件活动明细。
+    /// </summary>
+    [RelayCommand]
+    private void ViewTimeSegmentDetail(TimeSegmentStats? segment)
+    {
+        if (segment == null) return;
+        var detailWindow = new Controls.TimeSegmentDetailWindow(segment);
+        detailWindow.Owner = System.Windows.Application.Current.Windows
+            .OfType<DashboardWindow>().FirstOrDefault();
+        detailWindow.ShowDialog();
     }
 
     /// <summary>

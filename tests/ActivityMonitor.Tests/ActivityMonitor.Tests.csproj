@@ -31,6 +31,8 @@
   <ItemGroup>
     <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\DailyReportBuilder.cs" Link="Linked\DailyReportBuilder.cs" />
     <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\MarkdownExporter.cs" Link="Linked\MarkdownExporter.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\WeeklyReportBuilder.cs" Link="Linked\WeeklyReportBuilder.cs" />
+    <Compile Include="..\..\src\ActivityMonitor.TrayApp\Exporters\WeeklyMarkdownExporter.cs" Link="Linked\WeeklyMarkdownExporter.cs" />
   </ItemGroup>
 
 </Project>

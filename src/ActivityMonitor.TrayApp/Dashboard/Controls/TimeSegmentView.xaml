@@ -1,0 +1,54 @@
+<UserControl x:Class="ActivityMonitor.TrayApp.Dashboard.Controls.TimeSegmentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ActivityMonitor.TrayApp.Dashboard.Controls"
+             x:Name="Root">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="⏲ 时段聚合 (30分钟)"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" FontSize="11"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center" x:Name="ActiveSegmentCount"
+                       Text="计算中..." />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,4">
+            <ItemsControl x:Name="SegmentsItemsControl"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:TimeSegmentCard
+                            SegmentData="{Binding}"
+                            ViewDetailCommand="{Binding ElementName=Root, Path=ViewDetailCommand}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2" FontSize="10"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   HorizontalAlignment="Right"
+                   Text="💡 点击卡片查看该时段活动详情 · 活动 ≥ 1 分钟列出" />
+    </Grid>
+</UserControl>

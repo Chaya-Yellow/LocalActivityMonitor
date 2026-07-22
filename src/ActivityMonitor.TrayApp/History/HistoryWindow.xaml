@@ -5,13 +5,16 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="clr-namespace:ActivityMonitor.TrayApp.Dashboard.Controls"
         xmlns:models="clr-namespace:ActivityMonitor.Core.Models;assembly=ActivityMonitor.Core"
+        xmlns:history="clr-namespace:ActivityMonitor.TrayApp.History"
+        xmlns:hc="clr-namespace:ActivityMonitor.TrayApp.History.Controls"
         mc:Ignorable="d"
         Title="历史记录"
-        Height="600" Width="800"
-        MinHeight="400" MinWidth="600"
+        Height="650" Width="900"
+        MinHeight="500" MinWidth="650"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}">
 
+    <!-- ═══════ 资源定义 ═══════ -->
     <Window.Resources>
         <!-- 时间线视图的事件列表模板 -->
         <DataTemplate x:Key="TimelineEventTemplate" DataType="models:ActivityEvent">
@@ -70,24 +73,116 @@
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <!-- Tab 按钮样式：RadioButton 伪装成标签页 -->
+        <Style x:Key="TabRadioButton" TargetType="RadioButton">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Padding" Value="16,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="0,0,0,3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <!-- 头部：导航 + DatePicker -->
+            <!-- Row 0: Tab 切换栏 -->
             <RowDefinition Height="Auto" />
-            <!-- 范围选择模式（多日期） -->
+            <!-- Row 1: 导航栏（随视图模式变化） -->
             <RowDefinition Height="Auto" />
-            <!-- 摘要信息 -->
+            <!-- Row 2: 范围选择模式（仅日视图） -->
             <RowDefinition Height="Auto" />
-            <!-- 空数据提示 -->
+            <!-- Row 3: 范围统计摘要（仅日视图） -->
             <RowDefinition Height="Auto" />
-            <!-- 内容区：事件列表 / 统计概览 -->
+            <!-- Row 4: 空数据提示 -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 5: 内容区 -->
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ═══════ 日期导航 + DatePicker ═══════ -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
+        <!-- ═══════ Row 0: Tab 切换栏 ═══════ -->
+        <Border Grid.Row="0"
+                Background="{StaticResource CardBgBrush}"
+                CornerRadius="8,8,0,0"
+                Padding="6,4"
+                Margin="0,0,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 日 Tab -->
+                <RadioButton Grid.Column="0"
+                             Content="日"
+                             Style="{StaticResource TabRadioButton}"
+                             IsChecked="{Binding SelectedViewMode, Converter={StaticResource EnumEqConverter}, ConverterParameter=Day}"
+                             Command="{Binding SwitchToDayViewCommand}" />
+
+                <!-- 周 Tab -->
+                <RadioButton Grid.Column="1"
+                             Content="周"
+                             Style="{StaticResource TabRadioButton}"
+                             IsChecked="{Binding SelectedViewMode, Converter={StaticResource EnumEqConverter}, ConverterParameter=Week}"
+                             Command="{Binding SwitchToWeekViewCommand}" />
+
+                <!-- 月 Tab -->
+                <RadioButton Grid.Column="2"
+                             Content="月"
+                             Style="{StaticResource TabRadioButton}"
+                             IsChecked="{Binding SelectedViewMode, Converter={StaticResource EnumEqConverter}, ConverterParameter=Month}"
+                             Command="{Binding SwitchToMonthViewCommand}" />
+
+                <!-- 右侧当前标签信息 -->
+                <TextBlock Grid.Column="4"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,4,0"
+                           Text="{Binding DateLabel}" />
+            </Grid>
+        </Border>
+
+        <!-- ═══════ Row 1a: 日视图导航栏 ═══════ -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedViewMode}" Value="Day">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -99,7 +194,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Content="◀"
+            <Button Grid.Column="0" Content="&#9664;"
                     Style="{StaticResource PrimaryButton}"
                     Background="{StaticResource TextSecondaryBrush}"
                     Command="{Binding PreviousDayCommand}"
@@ -113,7 +208,7 @@
                        VerticalAlignment="Center"
                        Margin="10,0" />
 
-            <Button Grid.Column="2" Content="▶"
+            <Button Grid.Column="2" Content="&#9654;"
                     Style="{StaticResource PrimaryButton}"
                     Background="{StaticResource TextSecondaryBrush}"
                     Command="{Binding NextDayCommand}"
@@ -121,7 +216,7 @@
                     FontSize="14" Padding="0"
                     Margin="0,0,8,0" />
 
-            <!-- DatePicker 日历控件 -->
+            <!-- DatePicker -->
             <DatePicker x:Name="DatePickerControl"
                         Grid.Column="3"
                         SelectedDate="{Binding SelectedDate, Mode=TwoWay}"
@@ -144,7 +239,7 @@
                     Padding="10,4" FontSize="12"
                     Margin="6,0,0,0" />
 
-            <Button Grid.Column="5" Content="📅 范围选择"
+            <Button Grid.Column="5" Content="范围选择"
                     Style="{StaticResource PrimaryButton}"
                     Background="{StaticResource WarningBrush}"
                     Command="{Binding ToggleRangeModeCommand}"
@@ -162,8 +257,128 @@
             </TextBlock>
         </Grid>
 
-        <!-- ═══════ 范围选择模式（多日期） ═══════ -->
-        <Border Grid.Row="1"
+        <!-- ═══════ Row 1b: 周视图导航栏 ═══════ -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedViewMode}" Value="Week">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="&#9664; 上一周"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource TextSecondaryBrush}"
+                    Command="{Binding PreviousWeekCommand}"
+                    Padding="10,4" FontSize="12" />
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding WeekLabel}"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center" />
+
+            <Button Grid.Column="2" Content="本周"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource PrimaryBrush}"
+                    Command="{Binding GoToCurrentWeekCommand}"
+                    Padding="10,4" FontSize="12"
+                    Margin="6,0,0,0" />
+
+            <Button Grid.Column="3" Content="下一周 &#9654;"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource TextSecondaryBrush}"
+                    Command="{Binding NextWeekCommand}"
+                    Padding="10,4" FontSize="12"
+                    Margin="6,0,0,0" />
+
+            <!-- 周总时长 -->
+            <TextBlock Grid.Column="4"
+                       FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0">
+                <Run Text="周总活跃：" />
+                <Run Text="{Binding WeekTotalText}" FontWeight="SemiBold" />
+            </TextBlock>
+        </Grid>
+
+        <!-- ═══════ Row 1c: 月视图导航栏 ═══════ -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedViewMode}" Value="Month">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="&#9664; 上月"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource TextSecondaryBrush}"
+                    Command="{Binding PreviousMonthCommand}"
+                    Padding="10,4" FontSize="12" />
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding MonthLabel}"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center" />
+
+            <Button Grid.Column="2" Content="本月"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource PrimaryBrush}"
+                    Command="{Binding GoToCurrentMonthCommand}"
+                    Padding="10,4" FontSize="12"
+                    Margin="6,0,0,0" />
+
+            <Button Grid.Column="3" Content="下月 &#9654;"
+                    Style="{StaticResource PrimaryButton}"
+                    Background="{StaticResource TextSecondaryBrush}"
+                    Command="{Binding NextMonthCommand}"
+                    Padding="10,4" FontSize="12"
+                    Margin="6,0,0,0" />
+
+            <!-- 月摘要 -->
+            <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="16,0,0,0">
+                <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center">
+                    <Run Text="月活跃：" />
+                    <Run Text="{Binding MonthTotalText}" FontWeight="SemiBold" />
+                </TextBlock>
+                <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Run Text="活跃天数：" />
+                    <Run Text="{Binding MonthActiveDaysText}" FontWeight="SemiBold" />
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+
+        <!-- ═══════ Row 2: 范围选择模式（仅日视图） ═══════ -->
+        <Border Grid.Row="2"
                 Margin="0,0,0,8"
                 Padding="10,6"
                 CornerRadius="6"
@@ -173,9 +388,13 @@
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsRangeMode}" Value="True">
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsRangeMode}" Value="True" />
+                                <Condition Binding="{Binding SelectedViewMode}" Value="Day" />
+                            </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
+                        </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
@@ -186,7 +405,6 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -205,7 +423,7 @@
                             FontSize="12" Height="26" Width="120" />
 
                 <Button Grid.Column="5"
-                        Content="📊 查看统计"
+                        Content="查看统计"
                         Style="{StaticResource PrimaryButton}"
                         Background="{StaticResource SuccessBrush}"
                         Command="{Binding LoadRangeStatsCommand}"
@@ -213,7 +431,7 @@
                         Margin="8,0,0,0" />
 
                 <Button Grid.Column="6"
-                        Content="❌ 退出范围"
+                        Content="退出范围"
                         Style="{StaticResource PrimaryButton}"
                         Background="#666666"
                         Command="{Binding ToggleRangeModeCommand}"
@@ -222,8 +440,8 @@
             </Grid>
         </Border>
 
-        <!-- ═══════ 范围统计摘要 ═══════ -->
-        <Border Grid.Row="2"
+        <!-- ═══════ Row 3: 范围统计摘要（仅日视图范围模式） ═══════ -->
+        <Border Grid.Row="3"
                 Margin="0,0,0,6"
                 Padding="8,4"
                 CornerRadius="4"
@@ -237,6 +455,7 @@
                             <MultiDataTrigger.Conditions>
                                 <Condition Binding="{Binding IsRangeMode}" Value="True" />
                                 <Condition Binding="{Binding HasData}" Value="True" />
+                                <Condition Binding="{Binding SelectedViewMode}" Value="Day" />
                             </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible" />
                         </MultiDataTrigger>
@@ -245,7 +464,7 @@
             </Border.Style>
             <StackPanel Orientation="Horizontal">
                 <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}">
-                    <Run Text="📊 范围统计：" />
+                    <Run Text="范围统计：" />
                     <Run Text="{Binding RangeDaysText}" />
                     <Run Text=" · 总活跃：" />
                     <Run Text="{Binding RangeTotalText}" />
@@ -255,8 +474,8 @@
             </StackPanel>
         </Border>
 
-        <!-- ═══════ 空数据提示 ═══════ -->
-        <Border Grid.Row="3"
+        <!-- ═══════ Row 4: 空数据提示 ═══════ -->
+        <Border Grid.Row="4"
                 Margin="0,0,0,8"
                 Padding="20,12"
                 CornerRadius="6"
@@ -278,140 +497,690 @@
                        HorizontalAlignment="Center" />
         </Border>
 
-        <!-- ═══════ 内容区：时间线视图 ═══════ -->
-        <Border Grid.Row="4" Padding="0"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="8">
-            <Border.Style>
-                <Style TargetType="Border">
+        <!-- ═══════ Row 5a: 日视图内容区 ═══════ -->
+        <Grid Grid.Row="5">
+            <Grid.Style>
+                <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding IsTimelineView}" Value="True" />
+                                <Condition Binding="{Binding SelectedViewMode}" Value="Day" />
                                 <Condition Binding="{Binding HasData}" Value="True" />
                             </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible" />
                         </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
-            </Border.Style>
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding DateEvents}"
-                              ItemTemplate="{StaticResource TimelineEventTemplate}"
-                              Margin="8"
-                              VirtualizingPanel.IsVirtualizing="True" />
-            </ScrollViewer>
-        </Border>
+            </Grid.Style>
 
-        <!-- ═══════ 内容区：统计概览视图（3天以前） ═══════ -->
-        <Border Grid.Row="4" Padding="12"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="8">
-            <Border.Style>
-                <Style TargetType="Border">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 时间线视图（近 3 天） -->
+            <Border Grid.Row="0" Padding="0"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="8"
+                    Margin="0,0,0,6">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTimelineView}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding DateEvents}"
+                                  ItemTemplate="{StaticResource TimelineEventTemplate}"
+                                  Margin="8"
+                                  VirtualizingPanel.IsVirtualizing="True" />
+                </ScrollViewer>
+            </Border>
+
+            <!-- 统计概览视图（3 天以前） -->
+            <Grid Grid.Row="0" Margin="0,0,0,6">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTimelineView}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧：统计摘要卡片 -->
+                <Border Grid.Column="0"
+                        Background="{StaticResource CardBgBrush}"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="0,0,3,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="当日统计概览"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+
+                        <Grid Grid.Row="1" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center">总活跃时长</TextBlock>
+                                <TextBlock Text="{Binding TotalActiveText}"
+                                           FontSize="18" FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center">事件数</TextBlock>
+                                <TextBlock Text="{Binding EventCountText}"
+                                           FontSize="18" FontWeight="Bold"
+                                           Foreground="{StaticResource SuccessBrush}"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center">日期</TextBlock>
+                                <TextBlock Text="{Binding DateLabel}"
+                                           FontSize="14" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="应用分布"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,6" />
+
+                        <ScrollViewer Grid.Row="3"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding AppStats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid MinHeight="30" Margin="0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}">
+                                                <Run Text="{Binding DurationMs, StringFormat={}{0:N0}ms}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding Percentage, StringFormat={}{0:F1}%}" />
+                                            </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <!-- 右侧：日柱状图 + 数据表格 -->
+                <Border Grid.Column="1"
+                        Background="{StaticResource CardBgBrush}"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="3,0,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="2*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="3*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 柱状图 -->
+                        <hc:BarChartView Grid.Row="0"
+                                          ItemsSource="{Binding DayBarItems}"
+                                          ChartTitle="当日"
+                                          SelectedItemName="{Binding SelectedSoftwareName}"
+                                          ItemClickCommand="{Binding SelectSoftwareCommand}" />
+
+                        <!-- 分隔线 -->
+                        <Separator Grid.Row="1" Margin="0,4" Background="#E0E0E0" />
+
+                        <!-- 数据表格 -->
+                        <Grid Grid.Row="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="软件详情"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,4" />
+                            <ListView Grid.Row="1"
+                                      ItemsSource="{Binding DayTableItems}"
+                                      SelectedValuePath="Name"
+                                      SelectedValue="{Binding SelectedSoftwareName, Mode=TwoWay}"
+                                      BorderThickness="0"
+                                      Background="Transparent">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="软件名" Width="130"
+                                                        DisplayMemberBinding="{Binding Name}" />
+                                        <GridViewColumn Header="累计时长" Width="70"
+                                                        DisplayMemberBinding="{Binding FormattedDuration}" />
+                                        <GridViewColumn Header="时长占比" Width="65"
+                                                        DisplayMemberBinding="{Binding FormattedPercentage}" />
+                                        <GridViewColumn Header="记录条数" Width="60"
+                                                        DisplayMemberBinding="{Binding RecordCount}" />
+                                    </GridView>
+                                </ListView.View>
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#E3F2FD" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+                        </Grid>
+
+                        <!-- 底部汇总行 -->
+                        <Border Grid.Row="3"
+                                Background="#F5F5F5"
+                                CornerRadius="4"
+                                Padding="6,4"
+                                Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="总活跃：" />
+                                    <Run Text="{Binding TotalActiveText}" FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}" />
+                                </TextBlock>
+                                <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="12,0,0,0">
+                                    <Run Text="总记录：" />
+                                    <Run Text="{Binding DayTotalRecordCount, StringFormat={}{0} 条}"
+                                         FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 柱状图 + 数据表格（时间线视图下显示） -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="8"
+                    Padding="12">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTimelineView}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="3*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 柱状图 -->
+                    <hc:BarChartView Grid.Row="0"
+                                      ItemsSource="{Binding DayBarItems}"
+                                      ChartTitle="当日"
+                                      SelectedItemName="{Binding SelectedSoftwareName}"
+                                      ItemClickCommand="{Binding SelectSoftwareCommand}" />
+
+                    <!-- 分隔线 -->
+                    <Separator Grid.Row="1" Margin="0,4" Background="#E0E0E0" />
+
+                    <!-- 数据表格 -->
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 表格标题 -->
+                        <TextBlock Grid.Row="0"
+                                   Text="软件详情"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4" />
+
+                        <!-- ListView 表格：4列数据 -->
+                        <ListView Grid.Row="1"
+                                  ItemsSource="{Binding DayTableItems}"
+                                  SelectedValuePath="Name"
+                                  SelectedValue="{Binding SelectedSoftwareName, Mode=TwoWay}"
+                                  BorderThickness="0"
+                                  Background="Transparent">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="软件名"
+                                                    Width="140"
+                                                    DisplayMemberBinding="{Binding Name}" />
+                                    <GridViewColumn Header="累计时长"
+                                                    Width="75"
+                                                    DisplayMemberBinding="{Binding FormattedDuration}" />
+                                    <GridViewColumn Header="时长占比"
+                                                    Width="70"
+                                                    DisplayMemberBinding="{Binding FormattedPercentage}" />
+                                    <GridViewColumn Header="记录条数"
+                                                    Width="65"
+                                                    DisplayMemberBinding="{Binding RecordCount}" />
+                                </GridView>
+                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Style.Triggers>
+                                        <!-- 选中行高亮 -->
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#E3F2FD" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </Grid>
+
+                    <!-- 底部汇总行 -->
+                    <Border Grid.Row="3"
+                            Background="#F5F5F5"
+                            CornerRadius="4"
+                            Padding="8,6"
+                            Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="总活跃：" />
+                                <Run Text="{Binding TotalActiveText}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="16,0,0,0">
+                                <Run Text="总记录：" />
+                                <Run Text="{Binding DayTotalRecordCount, StringFormat={}{0} 条}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══════ Row 5b: 周视图内容区 ═══════ -->
+        <Grid Grid.Row="5">
+            <Grid.Style>
+                <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding IsTimelineView}" Value="False" />
+                                <Condition Binding="{Binding SelectedViewMode}" Value="Week" />
                                 <Condition Binding="{Binding HasData}" Value="True" />
                             </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible" />
                         </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
-            </Border.Style>
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            </Grid.Style>
 
-                <TextBlock Grid.Row="0"
-                           Text="📊 当日统计概览"
-                           FontSize="16" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           Margin="0,0,0,8" />
+            <Grid.RowDefinitions>
+                <!-- 周报 + 柱状图 -->
+                <RowDefinition Height="*" />
+                <!-- 周数据表格（全宽） -->
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-                <Grid Grid.Row="1" Margin="0,0,0,12">
+            <!-- Row 0: 周报 + 柱状图（两列布局） -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <!-- 左侧：周报 Markdown -->
+                    <ColumnDefinition Width="*" />
+                    <!-- 右侧：周柱状图 -->
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 周报 Markdown 渲染区 -->
+                <Border Grid.Column="0"
+                        Background="{StaticResource CardBgBrush}"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="0,0,3,0">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="周报预览"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <TextBox Text="{Binding WeeklyReportText, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Disabled"
+                                     HorizontalScrollBarVisibility="Disabled"
+                                     FontFamily="Consolas, Courier New"
+                                     FontSize="12"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     VerticalAlignment="Top" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- 周柱状图 -->
+                <Border Grid.Column="1"
+                        Background="{StaticResource CardBgBrush}"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="3,0,0,0">
+                    <hc:BarChartView ItemsSource="{Binding WeekBarItems}"
+                                      ChartTitle="本周"
+                                      SelectedItemName="{Binding SelectedSoftwareName}"
+                                      ItemClickCommand="{Binding SelectSoftwareCommand}" />
+                </Border>
+            </Grid>
+
+            <!-- Row 1: 周数据表格 + 汇总（全宽） -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,6,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="160" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 表格标题 -->
+                    <TextBlock Grid.Row="0"
+                               Text="本周软件详情"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,4" />
+
+                    <!-- ListView 表格 -->
+                    <ListView Grid.Row="1"
+                              ItemsSource="{Binding WeekTableItems}"
+                              SelectedValuePath="Name"
+                              SelectedValue="{Binding SelectedSoftwareName, Mode=TwoWay}"
+                              BorderThickness="0"
+                              Background="Transparent">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="软件名"
+                                                Width="200"
+                                                DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn Header="累计时长"
+                                                Width="90"
+                                                DisplayMemberBinding="{Binding FormattedDuration}" />
+                                <GridViewColumn Header="时长占比"
+                                                Width="80"
+                                                DisplayMemberBinding="{Binding FormattedPercentage}" />
+                                <GridViewColumn Header="记录条数"
+                                                Width="80"
+                                                DisplayMemberBinding="{Binding RecordCount}" />
+                            </GridView>
+                        </ListView.View>
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                    </ListView>
+
+                    <!-- 周汇总行 -->
+                    <Border Grid.Row="2"
+                            Background="#F5F5F5"
+                            CornerRadius="4"
+                            Padding="8,6"
+                            Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="周总活跃：" />
+                                <Run Text="{Binding WeekTotalText}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="16,0,0,0">
+                                <Run Text="周总记录：" />
+                                <Run Text="{Binding WeekTotalRecordCount, StringFormat={}{0} 条}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══════ Row 5c: 月视图内容区 ═══════ -->
+        <Grid Grid.Row="5">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedViewMode}" Value="Month" />
+                                <Condition Binding="{Binding HasData}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Grid.RowDefinitions>
+                <!-- 月度摘要卡片 -->
+                <RowDefinition Height="Auto" />
+                <!-- 月度柱状图 -->
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 月度摘要卡片 -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="8"
+                    Padding="16,10"
+                    Margin="0,0,0,6">
+                <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center">总活跃时长</TextBlock>
-                        <TextBlock Text="{Binding TotalActiveText}"
-                                   FontSize="18" FontWeight="Bold"
+                        <TextBlock Text="月度总活跃"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding MonthTotalText}"
+                                   FontSize="22" FontWeight="Bold"
                                    Foreground="{StaticResource PrimaryBrush}"
                                    HorizontalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center">事件数</TextBlock>
-                        <TextBlock Text="{Binding EventCountText}"
-                                   FontSize="18" FontWeight="Bold"
+                        <TextBlock Text="活跃天数"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding MonthActiveDaysText}"
+                                   FontSize="22" FontWeight="Bold"
                                    Foreground="{StaticResource SuccessBrush}"
                                    HorizontalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center">日期</TextBlock>
-                        <TextBlock Text="{Binding DateLabel}"
-                                   FontSize="14" FontWeight="Bold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                        <TextBlock Text="日均活跃"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding MonthTotalText}"
+                                   FontSize="18" FontWeight="Bold"
+                                   Foreground="{StaticResource WarningBrush}"
                                    HorizontalAlignment="Center" />
                     </StackPanel>
+
+                    <StackPanel Grid.Column="3" HorizontalAlignment="Center">
+                        <TextBlock Text="软件数"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="- 款" />
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
                 </Grid>
+            </Border>
 
-                <TextBlock Grid.Row="2"
-                           Text="应用分布"
-                           FontSize="13" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           Margin="0,0,0,6" />
+            <!-- 月度柱状图 + 数据表格 -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="8"
+                    Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="3*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <ScrollViewer Grid.Row="3"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding AppStats}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="core:StatsItem"
-                                          xmlns:core="clr-namespace:ActivityMonitor.Core.Interfaces;assembly=ActivityMonitor.Core">
-                                <Grid MinHeight="30" Margin="0,1">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding Name}"
-                                               FontSize="12"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="1"
-                                               FontSize="11"
-                                               Foreground="{StaticResource TextSecondaryBrush}">
-                                        <Run Text="{Binding DurationMs, StringFormat={}{0:N0}ms}" />
-                                        <Run Text=" · " />
-                                        <Run Text="{Binding Percentage, StringFormat={}{0:F1}%}" />
-                                    </TextBlock>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Grid>
-        </Border>
+                    <!-- 月度柱状图 -->
+                    <hc:BarChartView Grid.Row="0"
+                                      ItemsSource="{Binding MonthBarItems}"
+                                      ChartTitle="{Binding MonthLabel}"
+                                      SelectedItemName="{Binding SelectedSoftwareName}"
+                                      ItemClickCommand="{Binding SelectSoftwareCommand}" />
 
-        <!-- 加载遮罩 -->
-        <Border Grid.RowSpan="5" Background="#40FFFFFF">
+                    <!-- 分隔线 -->
+                    <Separator Grid.Row="1" Margin="0,4" Background="#E0E0E0" />
+
+                    <!-- 月数据表格 -->
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="月度软件详情"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4" />
+
+                        <ListView Grid.Row="1"
+                                  ItemsSource="{Binding MonthTableItems}"
+                                  SelectedValuePath="Name"
+                                  SelectedValue="{Binding SelectedSoftwareName, Mode=TwoWay}"
+                                  BorderThickness="0"
+                                  Background="Transparent">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="软件名"
+                                                    Width="200"
+                                                    DisplayMemberBinding="{Binding Name}" />
+                                    <GridViewColumn Header="累计时长"
+                                                    Width="90"
+                                                    DisplayMemberBinding="{Binding FormattedDuration}" />
+                                    <GridViewColumn Header="时长占比"
+                                                    Width="80"
+                                                    DisplayMemberBinding="{Binding FormattedPercentage}" />
+                                    <GridViewColumn Header="记录条数"
+                                                    Width="80"
+                                                    DisplayMemberBinding="{Binding RecordCount}" />
+                                </GridView>
+                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#E3F2FD" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </Grid>
+
+                    <!-- 月汇总行 -->
+                    <Border Grid.Row="3"
+                            Background="#F5F5F5"
+                            CornerRadius="4"
+                            Padding="8,6"
+                            Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="月总活跃：" />
+                                <Run Text="{Binding MonthTotalText}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="16,0,0,0">
+                                <Run Text="月总记录：" />
+                                <Run Text="{Binding MonthTotalRecordCount, StringFormat={}{0} 条}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══════ 加载遮罩 ═══════ -->
+        <Border Grid.RowSpan="6" Background="#40FFFFFF">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed" />
