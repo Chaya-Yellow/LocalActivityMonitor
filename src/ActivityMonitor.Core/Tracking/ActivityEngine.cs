@@ -16,6 +16,7 @@ public sealed class ActivityEngine : IDisposable
     private readonly IActivityRepository _repository;
     private readonly IActivityCategorizer? _categorizer;
     private readonly CrashRecoveryService _crashRecovery;
+    private readonly WindowSwitchLogger _windowSwitchLogger;
 
     private ActivityEvent? _currentEvent;
     private ActivityEvent? _lastActiveEvent;
@@ -60,7 +61,8 @@ public sealed class ActivityEngine : IDisposable
         ILockScreenDetector lockScreenDetector,
         IActivityRepository repository,
         IActivityCategorizer? categorizer,
-        CrashRecoveryService crashRecovery)
+        CrashRecoveryService crashRecovery,
+        IOperationLogRepository? operationLogRepository = null)
     {
         _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
         _idleDetector = idleDetector ?? throw new ArgumentNullException(nameof(idleDetector));
@@ -69,6 +71,10 @@ public sealed class ActivityEngine : IDisposable
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _categorizer = categorizer;
         _crashRecovery = crashRecovery ?? throw new ArgumentNullException(nameof(crashRecovery));
+
+        _windowSwitchLogger = operationLogRepository != null
+            ? new WindowSwitchLogger(_tracker, operationLogRepository)
+            : null!; // null 时跳过窗口切换日志
     }
 
     public async Task StartAsync()
@@ -111,6 +117,9 @@ public sealed class ActivityEngine : IDisposable
             _batchTimer.Elapsed += OnBatchTimerElapsed;
             _batchTimer.Start();
 
+            // W1-M3: 启动窗口切换日志记录器
+            if (_windowSwitchLogger != null) { _windowSwitchLogger.Start(); }
+
             if (!wasPaused) { _isPaused = false; SetState(EngineState.Running); Debug.WriteLine("[Engine] Started"); }
         }
         catch (Exception ex) { Debug.WriteLine(string.Format("[Engine] Start error: {0}", ex.Message)); SetState(EngineState.Stopped); }
@@ -136,6 +145,8 @@ public sealed class ActivityEngine : IDisposable
                 _pauseStartTime = null;
             }
 
+            // W1-M3: 停止窗口切换日志记录器
+            if (_windowSwitchLogger != null) { await _windowSwitchLogger.StopAsync(); }
             _tracker.Stop(); _idleDetector.Stop(); _sleepDetector.Stop(); _lockScreenDetector.Stop();
             FinalizeCurrentEvent();
             await FlushBatchAsync();
@@ -385,6 +396,7 @@ public sealed class ActivityEngine : IDisposable
         (_idleDetector as IDisposable)?.Dispose();
         (_sleepDetector as IDisposable)?.Dispose();
         (_lockScreenDetector as IDisposable)?.Dispose();
+        _windowSwitchLogger?.Dispose();
         _crashRecovery.Dispose();
         _engineCts?.Cancel(); _engineCts?.Dispose(); _engineCts = null;
         OnEngineStateChanged = null;
