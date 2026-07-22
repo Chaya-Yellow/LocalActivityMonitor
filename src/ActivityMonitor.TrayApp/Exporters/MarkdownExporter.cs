@@ -1,13 +1,14 @@
 using System.IO;
 using System.Text;
 using ActivityMonitor.Core.Interfaces;
+using ActivityMonitor.Core.Models;
 using ActivityMonitor.Data.Repositories;
 
 namespace ActivityMonitor.TrayApp.Exporters;
 
 /// <summary>
 /// Markdown 日报导出器。
-/// 实现 <see cref="IReportExporter"/>，生成 6 章节的 Markdown 工作日报。
+/// 实现 <see cref="IReportExporter"/>，生成 7 章节的 Markdown 工作日报（含操作日志）。
 /// 使用 StringBuilder 拼接，避免字符串频繁分配。
 /// </summary>
 public class MarkdownExporter : IReportExporter
@@ -17,6 +18,7 @@ public class MarkdownExporter : IReportExporter
     private readonly ActivityEventRepository _eventRepo;
     private readonly DailySummaryRepository _summaryRepo;
     private readonly DailyReportBuilder _builder;
+    private readonly IOperationLogRepository? _operationLogRepo;
 
     /// <summary>
     /// 使用指定的仓储和构建器初始化。
@@ -24,11 +26,13 @@ public class MarkdownExporter : IReportExporter
     public MarkdownExporter(
         ActivityEventRepository eventRepo,
         DailySummaryRepository summaryRepo,
-        DailyReportBuilder? builder = null)
+        DailyReportBuilder? builder = null,
+        IOperationLogRepository? operationLogRepo = null)
     {
         _eventRepo = eventRepo;
         _summaryRepo = summaryRepo;
         _builder = builder ?? new DailyReportBuilder();
+        _operationLogRepo = operationLogRepo;
     }
 
     /// <inheritdoc />
@@ -36,7 +40,12 @@ public class MarkdownExporter : IReportExporter
     {
         var events = await _eventRepo.GetByDateAsync(date);
         var summary = await _summaryRepo.GetAsync(date.ToString("yyyy-MM-dd"));
-        var data = _builder.Build(date, events, summary);
+
+        List<OperationLog>? operationLogs = null;
+        if (_operationLogRepo != null)
+            operationLogs = await _operationLogRepo.GetOperationLogsAsync(date);
+
+        var data = _builder.Build(date, events, summary, operationLogs);
         return FormatMarkdown(data);
     }
 
@@ -86,6 +95,9 @@ public class MarkdownExporter : IReportExporter
 
         // ── 章节 6：手动补充 ──────────────────────────────────────
         AppendSection6_Notes(sb, data);
+
+        // ── 章节 7：操作日志（W1-M3）───────────────────────────────
+        AppendSection7_OperationLogs(sb, data);
 
         return sb.ToString();
     }
@@ -265,6 +277,113 @@ public class MarkdownExporter : IReportExporter
         }
 
         sb.AppendLine();
+    }
+
+    // ── 章节 7：操作日志（W1-M3）────────────────────────────────
+
+    private static void AppendSection7_OperationLogs(StringBuilder sb, DailyReportData data)
+    {
+        sb.AppendLine("## 📋 操作日志");
+
+        if (data.OperationLogs.Count == 0)
+        {
+            sb.AppendLine("（无操作日志记录）");
+        }
+        else
+        {
+            foreach (var log in data.OperationLogs)
+            {
+                sb.Append("- **");
+                sb.Append(log.TimestampFormatted);
+                sb.Append("** ");
+
+                if (!string.IsNullOrWhiteSpace(log.Category))
+                {
+                    sb.Append('`');
+                    sb.Append(log.Category);
+                    sb.Append("` ");
+                }
+
+                sb.Append(log.AppName);
+
+                if (!string.IsNullOrWhiteSpace(log.WindowTitle))
+                {
+                    sb.Append(" · ");
+                    sb.Append(log.WindowTitle);
+                }
+
+                if (!string.IsNullOrWhiteSpace(log.Detail))
+                {
+                    sb.AppendLine();
+                    sb.Append("  └ ");
+                    sb.Append(log.Detail);
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine();
+    }
+
+    // ── 附属文件导出（W1-M3）────────────────────────────────────
+
+    /// <summary>
+    /// 异步导出日报 Markdown 文件，并在同目录下生成附属操作日志文件（_操作日志.md）。
+    /// </summary>
+    /// <param name="date">日报日期。</param>
+    /// <param name="filePath">日报主文件路径。为 null 时使用默认路径。</param>
+    /// <returns>操作日志文件的路径。</returns>
+    public async Task<string> ExportOperationLogsFileAsync(DateTime date, string? filePath = null)
+    {
+        var mainPath = await ExportDailyToFileAsync(date, filePath);
+
+        var dir = Path.GetDirectoryName(mainPath) ?? ".";
+        var logFileName = Path.GetFileNameWithoutExtension(mainPath) + "_操作日志.md";
+        var logFilePath = Path.Combine(dir, logFileName);
+
+        List<OperationLog> logs;
+        if (_operationLogRepo != null)
+            logs = await _operationLogRepo.GetOperationLogsAsync(date);
+        else
+            logs = new List<OperationLog>();
+
+        var logContent = FormatOperationLogsFile(logs, date);
+        await File.WriteAllTextAsync(logFilePath, logContent, Encoding.UTF8);
+        return logFilePath;
+    }
+
+    private static string FormatOperationLogsFile(List<OperationLog> logs, DateTime date)
+    {
+        var sb = new StringBuilder(2048);
+
+        sb.Append("# 操作日志 - ");
+        sb.AppendLine(date.ToString("yyyy-MM-dd"));
+        sb.AppendLine();
+        sb.AppendLine("| 时间 | 进程 | 窗口标题 | 类别 | 描述 |");
+        sb.AppendLine("|------|------|---------|------|------|");
+
+        foreach (var log in logs)
+        {
+            sb.Append("| ");
+            sb.Append(log.Timestamp.ToString("HH:mm:ss"));
+            sb.Append(" | ");
+            sb.Append(log.ProcessName ?? "");
+            sb.Append(" | ");
+            sb.Append((log.WindowTitle ?? "").Replace("|", "\\|"));
+            sb.Append(" | ");
+            sb.Append(log.Category ?? "");
+            sb.Append(" | ");
+            sb.Append((log.Detail ?? "").Replace("|", "\\|"));
+            sb.AppendLine(" |");
+        }
+
+        sb.AppendLine();
+        sb.Append("> 共 ");
+        sb.Append(logs.Count);
+        sb.AppendLine(" 条操作记录");
+
+        return sb.ToString();
     }
 
     // ── 辅助 ──────────────────────────────────────────────────────

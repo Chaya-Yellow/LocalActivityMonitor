@@ -278,6 +278,189 @@ public class MarkdownExporterTests
         finally { TryDelete(file); TryDeleteDir(baseDir); TryDelete(db); }
     }
 
+    // ────────────────────────────────────────────
+    //  Operation logs – embedded in section 7 (W1-M3)
+    // ────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExportDailyAsync_WithOperationLogs_ContainsSection7()
+    {
+        var db = TempDbPath();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var logRepo = new OperationLogRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx),
+                operationLogRepo: logRepo);
+
+            var date = new DateTime(2026, 7, 21);
+
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+
+            await logRepo.InsertAsync(new OperationLog
+            {
+                Timestamp = date.AddHours(9),
+                ProcessName = "code.exe",
+                WindowTitle = "code.exe - Program.cs",
+                Category = Category.App,
+            });
+
+            var markdown = await exporter.ExportDailyAsync(date);
+
+            markdown.Should().Contain("📋 操作日志");
+            markdown.Should().Contain("09:00");
+            markdown.Should().Contain("code");
+            markdown.Should().Contain("code.exe - Program.cs");
+            markdown.Should().NotContain("（无操作日志记录）");
+        }
+        finally { TryDelete(db); }
+    }
+
+    [Fact]
+    public async Task ExportDailyAsync_WithoutOperationLogs_ShowsEmptySection7()
+    {
+        var db = TempDbPath();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx));
+
+            var date = new DateTime(2026, 7, 21);
+
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+
+            var markdown = await exporter.ExportDailyAsync(date);
+
+            markdown.Should().Contain("📋 操作日志");
+            markdown.Should().Contain("（无操作日志记录）");
+        }
+        finally { TryDelete(db); }
+    }
+
+    [Fact]
+    public async Task ExportDailyAsync_WithOperationLogCategory_RendersCategoryBadge()
+    {
+        var db = TempDbPath();
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var logRepo = new OperationLogRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx),
+                operationLogRepo: logRepo);
+
+            var date = new DateTime(2026, 7, 21);
+
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+
+            await logRepo.InsertAsync(new OperationLog
+            {
+                Timestamp = date.AddHours(9).AddMinutes(30),
+                ProcessName = "chrome.exe",
+                WindowTitle = "GitHub - Pull Requests",
+                Category = Category.Web,
+                Detail = "https://github.com/pulls",
+            });
+
+            var markdown = await exporter.ExportDailyAsync(date);
+
+            markdown.Should().Contain("`web`");
+            markdown.Should().Contain("chrome");
+            markdown.Should().Contain("https://github.com/pulls");
+        }
+        finally { TryDelete(db); }
+    }
+
+    // ────────────────────────────────────────────
+    //  Operation logs – companion file export (W1-M3)
+    // ────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExportOperationLogsFileAsync_WithLogs_WritesCompanionFile()
+    {
+        var db = TempDbPath();
+        var dir = Path.Combine(Path.GetTempPath(), $"md_logs_{Guid.NewGuid():N}");
+        var mainFile = Path.Combine(dir, "daily-report.md");
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var logRepo = new OperationLogRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx),
+                operationLogRepo: logRepo);
+
+            var date = new DateTime(2026, 7, 21);
+
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+
+            await logRepo.InsertAsync(new OperationLog
+            {
+                Timestamp = date.AddHours(9),
+                ProcessName = "code.exe",
+                WindowTitle = "Program.cs",
+                Category = Category.App,
+            });
+
+            var companionPath = await exporter.ExportOperationLogsFileAsync(date, mainFile);
+
+            File.Exists(companionPath).Should().BeTrue();
+            var content = await File.ReadAllTextAsync(companionPath);
+            content.Should().Contain("# 操作日志");
+            content.Should().Contain("2026-07-21");
+            content.Should().Contain("code.exe");
+            content.Should().Contain("| 时间 | 进程 |");
+            content.Should().Contain("1 条操作记录");
+        }
+        finally { TryDelete(mainFile); TryDeleteDir(dir); TryDelete(db); }
+    }
+
+    [Fact]
+    public async Task ExportOperationLogsFileAsync_WithoutLogRepo_WritesEmptyFile()
+    {
+        var db = TempDbPath();
+        var dir = Path.Combine(Path.GetTempPath(), $"md_logs_{Guid.NewGuid():N}");
+        var mainFile = Path.Combine(dir, "daily-report.md");
+        try
+        {
+            using var ctx = new SqliteContext(db);
+            await InitSchemaAsync(ctx);
+            var eventRepo = new ActivityEventRepository(ctx);
+            var exporter = new MarkdownExporter(
+                eventRepo, new DailySummaryRepository(ctx));
+
+            var date = new DateTime(2026, 7, 21);
+
+            await eventRepo.InsertAsync(MakeEvent(
+                "code.exe", Category.App, null, "MyProject", WorkTag.Work,
+                3600000, date.AddHours(9)));
+
+            var companionPath = await exporter.ExportOperationLogsFileAsync(date, mainFile);
+
+            File.Exists(companionPath).Should().BeTrue();
+            var content = await File.ReadAllTextAsync(companionPath);
+            content.Should().Contain("0 条操作记录");
+        }
+        finally { TryDelete(mainFile); TryDeleteDir(dir); TryDelete(db); }
+    }
+
     private static void TryDelete(string p) { try { File.Delete(p); } catch { } }
     private static void TryDeleteDir(string p) { try { Directory.Delete(p, true); } catch { } }
 }
