@@ -157,6 +157,30 @@ public class SqliteContext : IDisposable
                 key                 TEXT PRIMARY KEY,
                 value               TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS user_project_rules (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_name        TEXT NOT NULL,
+                rule_type           TEXT NOT NULL,
+                rule_value          TEXT NOT NULL,
+                priority            INTEGER DEFAULT 0,
+                is_active           INTEGER DEFAULT 1,
+                description         TEXT,
+                created_at          TEXT NOT NULL,
+                updated_at          TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS misreport_flags (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id            INTEGER NOT NULL,
+                flag_type           TEXT NOT NULL,
+                flag_reason         TEXT NOT NULL,
+                is_resolved         INTEGER DEFAULT 0,
+                notes               TEXT,
+                created_at          TEXT NOT NULL,
+                resolved_at         TEXT,
+                FOREIGN KEY (event_id) REFERENCES activity_events(id) ON DELETE CASCADE
+            );
         ";
     }
 
@@ -171,6 +195,13 @@ public class SqliteContext : IDisposable
             CREATE INDEX IF NOT EXISTS idx_events_proc ON activity_events(process_name, start_time);
             CREATE INDEX IF NOT EXISTS idx_events_proj ON activity_events(project, start_time);
             CREATE INDEX IF NOT EXISTS idx_events_domain ON activity_events(domain, start_time);
+
+            CREATE INDEX IF NOT EXISTS idx_rules_project ON user_project_rules(project_name);
+            CREATE INDEX IF NOT EXISTS idx_rules_type   ON user_project_rules(rule_type, is_active);
+
+            CREATE INDEX IF NOT EXISTS idx_misreport_event   ON misreport_flags(event_id);
+            CREATE INDEX IF NOT EXISTS idx_misreport_status  ON misreport_flags(is_resolved, created_at);
+            CREATE INDEX IF NOT EXISTS idx_misreport_type    ON misreport_flags(flag_type, is_resolved);
         ";
     }
 
